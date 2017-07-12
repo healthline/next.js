@@ -1,5 +1,5 @@
 {
-  "name": "next",
+  "name": "@kpdecker/next",
   "version": "3.0.1-beta.13",
   "description": "Minimalistic framework for server-rendered React applications",
   "main": "./dist/server/next.js",
