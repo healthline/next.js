@@ -31,7 +31,7 @@ export async function renderError (err, req, res, pathname, query, opts) {
 }
 
 export function renderBackpressureToHTML (req, res, pathname, query, opts = {}) {
-  return doRender(req, res, pathname, query, { ...opts, backpressure: true })
+  return doRender(req, res, pathname, query, { ...opts, overloadCheck: () => true })
 }
 
 export function renderErrorToHTML (err, req, res, pathname, query, opts = {}) {
@@ -50,7 +50,7 @@ async function doRender (req, res, pathname, query, {
   dev = false,
   staticMarkup = false,
   nextExport = false,
-  backpressure = false
+  overloadCheck = () => false
 } = {}) {
   page = page || pathname
 
@@ -74,7 +74,7 @@ async function doRender (req, res, pathname, query, {
   const renderPage = () => {
     const chunks = loadChunks({ dev, dir, dist, availableChunks })
 
-    if (backpressure) {
+    if (overloadCheck()) {
       return {
         html: '',
         head: defaultHead(),
