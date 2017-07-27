@@ -44,6 +44,7 @@ export default async function createCompiler (dir, { dev = false, quiet = false,
     const entries = {
       'main.js': [
         ...defaultEntries,
+        ...config.clientBootstrap || [],
         mainJS
       ]
     }
