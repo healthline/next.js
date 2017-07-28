@@ -27,12 +27,12 @@ describe('On Demand Entries', () => {
   })
 
   it('should compile pages for JSON page requests', async () => {
-    const pageContent = await renderViaHTTP(context.appPort, '/_next/-/page/about')
+    const pageContent = await renderViaHTTP(context.appPort, '/_next/development/pages/about.js')
     expect(pageContent.includes('About Page')).toBeTruthy()
   })
 
   it('should dispose inactive pages', async () => {
-    await renderViaHTTP(context.appPort, '/_next/-/page/about')
+    await renderViaHTTP(context.appPort, '/_next/development/pages/about.js')
     const aboutPagePath = resolve(__dirname, '../.next/bundles/pages/about.js')
     expect(existsSync(aboutPagePath)).toBeTruthy()
 
