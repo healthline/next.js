@@ -152,20 +152,6 @@ export default class Server {
         }
       },
 
-      '/_next/:hash/:name': async (req, res, params) => {
-        if (!this.dev) return this.send404(res)
-
-        if (!this.handleBuildHash(params.name, params.hash, res)) {
-          const error = new Error('INVALID_BUILD_ID')
-          const customFields = { buildIdMismatched: true }
-
-          return await renderScriptError(req, res, params.name, error, customFields, this.renderOpts)
-        }
-
-        const p = join(this.dir, this.dist, 'bundles', params.name)
-        await this.serveStatic(req, res, p)
-      },
-
       // It's very important keep this route's param optional.
       // (but it should support as many as params, seperated by '/')
       // Othewise this will lead to a pretty simple DOS attack.
