@@ -22,7 +22,7 @@ const defaultPages = [
 const nextPagesDir = join(__dirname, '..', '..', 'pages')
 const nextNodeModulesDir = join(__dirname, '..', '..', '..', 'node_modules')
 const interpolateNames = new Map(defaultPages.map((p) => {
-  return [join(nextPagesDir, p), `dist/pages/${p}`]
+  return [join(nextPagesDir, p), `../dist/pages/${p}`]
 }))
 
 const relativeResolve = rootModuleRelativePath(require)
@@ -53,14 +53,9 @@ export default async function createCompiler (dir, { dev = false, quiet = false,
 
     // In the dev environment, on-demand-entry-handler will take care of
     // managing pages.
-    if (dev) {
-      for (const p of devPages) {
-        entries[p] = [`./${p}?entry`]
-      }
-    } else {
-      for (const p of pages) {
-        entries[p] = [`./${p}?entry`]
-      }
+    const entryPages = dev ? devPages : pages
+    for (const p of entryPages) {
+      entries[p.replace(/^(pages\/.*)\/index.js$/, '$1.js')] = [`./${p}?entry`]
     }
 
     for (const p of defaultPages) {
