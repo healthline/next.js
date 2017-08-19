@@ -37,16 +37,6 @@ export default class DynamicChunksPlugin {
           size: () => concat.sourceMap.length,
           source: () => concat.sourceMap
         }
-
-        // This is to support, webpack dynamic import support with HMR
-        compilation.assets[`chunks/${chunk.name}`] = {
-          size: () => concat.content.length,
-          source: () => concat.content
-        }
-        compilation.assets[`chunks/${chunk.name}.map`] = {
-          size: () => concat.sourceMap.length,
-          source: () => concat.sourceMap
-        }
       })
       callback()
     })
