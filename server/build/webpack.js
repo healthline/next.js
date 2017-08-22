@@ -295,6 +295,10 @@ export default async function createCompiler (dir, { dev = false, quiet = false,
       publicPath: `/_next/${buildId}/`,
       strictModuleExceptionHandling: true,
       devtoolModuleFilenameTemplate ({ resourcePath }) {
+        if (!dev) {
+          return `webpack:///${resourcePath}`
+        }
+
         const hash = createHash('sha1')
         hash.update(Date.now() + '')
         const id = hash.digest('hex').slice(0, 7)
