@@ -2,7 +2,7 @@
   "name": "@kpdecker/next",
   "version": "5.1.1",
   "description": "Minimalistic framework for server-rendered React applications",
-  "main": "./dist/server/next.js",
+  "main": "./dist/node/server/next.js",
   "license": "MIT",
   "repository": "zeit/next.js",
   "bugs": "https://github.com/zeit/next.js/issues",
@@ -21,7 +21,7 @@
     "error.js"
   ],
   "bin": {
-    "next": "./dist/bin/next"
+    "next": "./dist/node/bin/next"
   },
   "scripts": {
     "build": "taskr",
@@ -98,9 +98,10 @@
     "url": "0.11.0",
     "uuid": "3.2.1",
     "walk": "2.3.9",
-    "webpack": "3.6.0",
-    "webpack-dev-middleware": "1.12.0",
-    "webpack-hot-middleware": "2.21.2",
+    "webpack": "4.6.0",
+    "webpack-dev-middleware": "3.1.2",
+    "webpack-hot-middleware": "2.22.1",
+    "webpack-stats-plugin": "0.2.1",
     "write-file-webpack-plugin": "4.2.0",
     "xss-filters": "1.2.7"
   },

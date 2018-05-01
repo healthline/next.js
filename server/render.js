@@ -56,9 +56,7 @@ async function doRender (req, res, pathname, query, {
   await ensurePage(page, { dir, hotReloader })
 
   const dist = getConfig(dir).distDir
-  const nodeDistDir = join(dir, dist, 'dist')
-
-  const pageDir = join(nodeDistDir, 'pages')
+  const pageDir = join(dir, dist, 'server', 'pages')
 
   const [pagePath, documentPath] = await Promise.all([
     resolve(join(pageDir, page)),
@@ -97,7 +95,7 @@ async function doRender (req, res, pathname, query, {
       router: new Router(pathname, query, asPath)
     })
 
-    const render = staticMarkup ? renderToStaticMarkup : renderToString
+    const render = renderToString
 
     let html
     let head
@@ -133,7 +131,6 @@ async function doRender (req, res, pathname, query, {
     },
     dev,
     dir,
-    staticMarkup,
     ...docProps
   })
 

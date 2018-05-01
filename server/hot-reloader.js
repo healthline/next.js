@@ -5,10 +5,7 @@ import onDemandEntryHandler from './on-demand-entry-handler'
 import webpack from './build/webpack'
 import clean from './build/clean'
 import getConfig from './config'
-import UUID from 'uuid'
-import {
-  IS_BUNDLED_PAGE
-} from './utils'
+import { IS_BUNDLED_PAGE } from './utils'
 
 export default class HotReloader {
   constructor (dir, { quiet, conf } = {}) {
@@ -28,7 +25,7 @@ export default class HotReloader {
     // Our router accepts any value in the dev mode.
     // But for the webpack-compiler and for the webpack-dev-server
     // it should be the same value.
-    this.buildId = UUID.v4()
+    this.buildId = '-'
 
     this.config = getConfig(dir, conf)
   }
@@ -97,7 +94,8 @@ export default class HotReloader {
   }
 
   async prepareBuildTools (compiler) {
-    compiler.plugin('after-emit', (compilation, callback) => {
+    const [serverCompiler] = compiler.compilers
+    serverCompiler.hooks.afterEmit.tap('prepareBuildTools', (compilation) => {
       const { assets } = compilation
 
       if (this.prevAssets) {
@@ -111,27 +109,25 @@ export default class HotReloader {
         }
       }
       this.prevAssets = assets
-
-      callback()
     })
 
-    compiler.plugin('done', (stats) => {
-      const { compilation } = stats
+    compiler.hooks.done.tap('prepareBuildTools', (multiStats) => {
       const chunkNames = new Set(
-        compilation.chunks
+        multiStats.stats.reduce((prev, {compilation}) => prev.concat(compilation.chunks), [])
           .map((c) => c.name)
           .filter(name => IS_BUNDLED_PAGE.test(name))
       )
 
-      const failedChunkNames = new Set(compilation.errors
-        .map((e) => e.module.reasons)
+      const failedChunkNames = new Set(multiStats.stats.reduce((prev, {compilation}) => prev.concat(compilation.errors), [])
+        .map((e) => e.module && e.module.reasons)
         .reduce((a, b) => a.concat(b), [])
-        .map((r) => r.module.chunks)
+        .filter(Boolean)
+        .map((r) => Array.from(r.module.chunksIterable))
         .reduce((a, b) => a.concat(b), [])
         .map((c) => c.name))
 
       const chunkHashes = new Map(
-        compilation.chunks
+        multiStats.stats.reduce((prev, {compilation}) => prev.concat(compilation.chunks), [])
           .filter(c => IS_BUNDLED_PAGE.test(c.name))
           .map((c) => [c.name, c.hash])
       )
@@ -166,7 +162,7 @@ export default class HotReloader {
       }
 
       this.initialized = true
-      this.stats = stats
+      this.stats = multiStats
       this.compilationErrors = null
       this.prevChunkNames = chunkNames
       this.prevFailedChunkNames = failedChunkNames
@@ -182,7 +178,9 @@ export default class HotReloader {
       publicPath: `/_next/${this.buildId}/webpack/`,
       noInfo: true,
       quiet: true,
+      hot: true,
       clientLogLevel: 'warning',
+      stats: 'minimal',
       watchOptions: { ignored }
     }
 

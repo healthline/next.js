@@ -7,8 +7,8 @@ import portfinder from 'portfinder'
 import { spawn } from 'child_process'
 import fkill from 'fkill'
 
-import server from '../../dist/server/next'
-import build from '../../dist/server/build'
+import server from '../../dist/node/server/next'
+import build from '../../dist/node/server/build'
 import _pkg from '../../package.json'
 
 export const nextServer = server

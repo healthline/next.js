@@ -48,18 +48,9 @@ export class Head extends Component {
   }
 
   getPreloadMainLinks () {
-    const { dev } = this.context._documentProps
-    if (dev) {
-      return [
-        this.getChunkPreloadLink('manifest.js'),
-        this.getChunkPreloadLink('commons.js'),
-        this.getChunkPreloadLink('main.js')
-      ]
-    }
-
     // In the production mode, we have a single asset with all the JS content.
     return [
-      this.getChunkPreloadLink('app.js')
+      this.getChunkPreloadLink('vendor.js')
     ]
   }
 
@@ -138,36 +129,22 @@ export class NextScript extends Component {
   }
 
   getScripts () {
-    const { dev } = this.context._documentProps
-    if (dev) {
-      return [
-        this.getChunkScript('manifest.js'),
-        this.getChunkScript('commons.js'),
-        this.getChunkScript('main.js')
-      ]
-    }
-
     // In the production mode, we have a single asset with all the JS content.
     // So, we can load the script with async
-    return [this.getChunkScript('app.js', { async: true })]
+    return [this.getChunkScript('vendor.js', { async: true })]
   }
 
   render () {
-    const { staticMarkup, __NEXT_DATA__ } = this.context._documentProps
+    const { __NEXT_DATA__ } = this.context._documentProps
     const { pathname, buildId, assetPrefix } = __NEXT_DATA__
     const pagePathname = getPagePathname(pathname)
 
     return <div>
-      {staticMarkup ? null : <script nonce={this.props.nonce} dangerouslySetInnerHTML={{
-        __html: `
-          __NEXT_DATA__ = ${htmlescape(__NEXT_DATA__)}
-          module={}
-          __NEXT_LOADED_PAGES__ = []
-          __NEXT_REGISTER_PAGE = function (route, fn) { __NEXT_LOADED_PAGES__.push({ route: route, fn: fn }) }
-        `
-      }} />}
+      <script nonce={this.props.nonce} dangerouslySetInnerHTML={{
+        __html: `module={};__NEXT_DATA__ = ${htmlescape(__NEXT_DATA__)}`
+      }} />
       <script async id={`__NEXT_PAGE__${pathname}`} type='text/javascript' src={`${assetPrefix}/_next/${buildId}/pages${pagePathname}.js`} />
-      {staticMarkup ? null : this.getScripts()}
+      {this.getScripts()}
     </div>
   }
 }

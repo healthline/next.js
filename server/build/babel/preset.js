@@ -1,5 +1,3 @@
-const relativeResolve = require('../root-module-relative-path').default(require)
-
 const envPlugins = {
   'development': [
     require.resolve('babel-plugin-transform-react-jsx-source')
@@ -15,6 +13,7 @@ module.exports = (context, opts = {}) => ({
   presets: [
     [require.resolve('babel-preset-env'), {
       modules: false,
+      targets: opts.isServer ? { node: 'current' } : { ie: 11 },
       ...opts['preset-env']
     }],
     require.resolve('babel-preset-react')
@@ -25,21 +24,6 @@ module.exports = (context, opts = {}) => ({
     require.resolve('./plugins/handle-import'),
     require.resolve('babel-plugin-transform-object-rest-spread'),
     require.resolve('babel-plugin-transform-class-properties'),
-    [require.resolve('babel-plugin-transform-runtime'), opts['transform-runtime'] || {}],
-    ...plugins,
-    [
-      require.resolve('babel-plugin-module-resolver'),
-      {
-        alias: {
-          'babel-runtime': relativeResolve('babel-runtime/package'),
-          'next/link': relativeResolve('../../../lib/link'),
-          'next/dynamic': relativeResolve('../../../lib/dynamic'),
-          'next/head': relativeResolve('../../../lib/head'),
-          'next/document': relativeResolve('../../../server/document'),
-          'next/router': relativeResolve('../../../lib/router'),
-          'next/error': relativeResolve('../../../lib/error')
-        }
-      }
-    ]
-  ]
+    [require.resolve('babel-plugin-transform-runtime'), opts['transform-runtime'] || {polyfill: false}]
+  ].concat(plugins)
 })

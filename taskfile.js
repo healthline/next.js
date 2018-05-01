@@ -2,27 +2,42 @@ const notifier = require('node-notifier')
 const childProcess = require('child_process')
 const isWindows = /^win/.test(process.platform)
 
+const babelNodeConfig = {
+  babelrc: false,
+  presets: [
+    ['env', {
+      targets: {
+        node: 'current'
+      }
+    }],
+    'react'
+  ],
+  plugins: ['transform-object-rest-spread', 'transform-class-properties']
+}
+
 export async function compile (task) {
   await task.parallel(['bin', 'server', 'lib', 'client'])
 }
 
 export async function bin (task, opts) {
-  await task.source(opts.src || 'bin/*').babel().target('dist/bin', {mode: '0755'})
+  await task.source('bin/*').babel(babelNodeConfig).target('dist/node/bin', {mode: '0755'})
   notify('Compiled binaries')
 }
 
 export async function lib (task, opts) {
-  await task.source(opts.src || 'lib/**/*.js').babel().target('dist/lib')
+  await task.source('lib/**/*.js').babel(babelNodeConfig).target('dist/node/lib')
+  await task.source('lib/**/*.js').target('dist/browser/lib')
   notify('Compiled lib files')
 }
 
 export async function server (task, opts) {
-  await task.source(opts.src || 'server/**/*.js').babel().target('dist/server')
+  await task.source('server/**/*.js').babel(babelNodeConfig).target('dist/node/server')
   notify('Compiled server files')
 }
 
 export async function client (task, opts) {
-  await task.source(opts.src || 'client/**/*.js').babel().target('dist/client')
+  await task.source('client/**/*.js').target('dist/browser/client')
+  await task.source('client/**/*.js').babel(babelNodeConfig).target('dist/node/client')
   notify('Compiled client files')
 }
 

@@ -5,7 +5,7 @@ import { createRouter } from '../lib/router'
 import EventEmitter from '../lib/EventEmitter'
 import App from '../lib/app'
 import { loadGetInitialProps, getURL } from '../lib/utils'
-import PageLoader from '../lib/page-loader'
+import { loadPage } from '../lib/page-loader'
 
 // Polyfill Promise globally
 // This is needed because Webpack2's dynamic loading(common chunks) code
@@ -34,13 +34,6 @@ if (assetPrefix) {
 
 const asPath = getURL()
 
-const pageLoader = new PageLoader(buildId, assetPrefix)
-window.__NEXT_LOADED_PAGES__.forEach(({ route, fn }) => {
-  pageLoader.registerPage(route, fn)
-})
-delete window.__NEXT_LOADED_PAGES__
-window.__NEXT_REGISTER_PAGE = pageLoader.registerPage.bind(pageLoader)
-
 const headManager = new HeadManager()
 const appContainer = document.getElementById('__next')
 const errorContainer = document.getElementById('__next-error')
@@ -53,17 +46,16 @@ let Component
 export const emitter = new EventEmitter()
 
 export default async () => {
-  ErrorComponent = await pageLoader.loadPage('/_error')
+  ErrorComponent = await loadPage('/_error')
 
   try {
-    Component = await pageLoader.loadPage(pathname)
+    Component = await loadPage(pathname)
   } catch (err) {
     console.error(err)
     Component = ErrorComponent
   }
 
   router = createRouter(pathname, query, asPath, {
-    pageLoader,
     Component,
     ErrorComponent,
     err

@@ -1,6 +1,6 @@
 /* global describe, it, expect */
 
-import { parsePath, formatPath } from '../../dist/lib/url'
+import { parsePath, formatPath } from '../../dist/node/lib/url'
 
 describe('url', () => {
   describe('parsePath', () => {

@@ -11,7 +11,7 @@ import {
   renderScriptError
 } from './render'
 import Router from './router'
-import { getAvailableChunks } from './utils'
+import { getAvailableChunks, nextModuleDir } from './utils'
 import getConfig from './config'
 
 const internalPrefixes = [
@@ -25,14 +25,14 @@ const blockedPages = {
 }
 
 export default class Server {
-  constructor ({ dir = '.', dev = false, staticMarkup = false, quiet = false, conf = null } = {}) {
+  constructor ({ dir = '.', dev = false, quiet = false, conf = null } = {}) {
     // When in dev mode, remap the inline source maps that we generate within the webpack portion
     // of the build.
-    if (dev) {
-      require('source-map-support').install({
-        hookRequire: true
-      })
-    }
+    // if (dev) {
+    //   require('source-map-support').install({
+    //     hookRequire: true
+    //   })
+    // }
 
     this.dir = resolve(dir)
     this.dev = dev
@@ -50,7 +50,6 @@ export default class Server {
     this.buildId = !dev ? this.readBuildId() : '-'
     this.renderOpts = {
       dev,
-      staticMarkup,
       dir: this.dir,
       hotReloader: this.hotReloader,
       buildStats: this.buildStats,
@@ -115,7 +114,7 @@ export default class Server {
   defineRoutes () {
     const routes = {
       '/_next-prefetcher.js': async (req, res, params) => {
-        const p = join(__dirname, '../client/next-prefetcher-bundle.js')
+        const p = join(nextModuleDir, 'client/next-prefetcher-bundle.js')
         await this.serveStatic(req, res, p)
       },
 

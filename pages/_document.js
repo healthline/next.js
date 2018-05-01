@@ -1,1 +1,2 @@
-module.exports = require('next/document')
+import Document from 'next/document'
+export default Document

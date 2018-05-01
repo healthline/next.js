@@ -1,5 +1,5 @@
 /* global describe, it, expect */
-import EventEmitter from '../../dist/lib/EventEmitter'
+import EventEmitter from '../../dist/node/lib/EventEmitter'
 
 describe('EventEmitter', () => {
   describe('With listeners', () => {

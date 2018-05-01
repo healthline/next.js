@@ -1,5 +1,5 @@
 /* global describe, it, expect */
-import { getModulePath } from '../../dist/server/build/babel/plugins/handle-import'
+import { getModulePath } from '../../dist/node/server/build/babel/plugins/handle-import'
 
 function cleanPath (mPath) {
   return mPath

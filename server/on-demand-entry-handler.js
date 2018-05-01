@@ -1,11 +1,8 @@
-import DynamicEntryPlugin from 'webpack/lib/DynamicEntryPlugin'
 import { EventEmitter } from 'events'
 import { join } from 'path'
 import resolvePath from './resolve'
-import touch from 'touch'
 import { MATCH_ROUTE_NAME, IS_BUNDLED_PAGE, normalizePageEntryName } from './utils'
 
-const ADDED = Symbol('added')
 const BUILDING = Symbol('building')
 const BUILT = Symbol('built')
 
@@ -18,29 +15,13 @@ export default function onDemandEntryHandler (devMiddleware, compiler, {
 }) {
   let entries = {}
   let doneCallbacks = new EventEmitter()
-  const invalidator = new Invalidator(devMiddleware)
-  let touchedAPage = false
+  const invalidator = new Invalidator(devMiddleware, compiler.compilers)
   let reloading = false
   let stopped = false
   let reloadCallbacks = new EventEmitter()
 
-  compiler.plugin('make', function (compilation, done) {
-    invalidator.startBuilding()
-
-    const allEntries = Object.keys(entries).map((page) => {
-      const { name, entry } = entries[page]
-      entries[page].status = BUILDING
-      return addEntry(compilation, this.context, name, entry)
-    })
-
-    Promise.all(allEntries)
-      .then(() => done())
-      .catch(done)
-  })
-
-  compiler.plugin('done', function (stats) {
-    const { compilation } = stats
-    const hardFailedPages = compilation.errors
+  compiler.hooks.done.tap('onDemandEntryHandler', function (multiStats) {
+    const hardFailedPages = multiStats.stats.reduce((prev, {compilation}) => prev.concat(compilation.errors
       .filter(e => {
         // Make sure to only pick errors which marked with missing modules
         const hasNoModuleFoundError = /ENOENT/.test(e.message) || /Module not found/.test(e.message)
@@ -58,26 +39,14 @@ export default function onDemandEntryHandler (devMiddleware, compiler, {
       .map(c => {
         const pageName = MATCH_ROUTE_NAME.exec(c.name)[1]
         return normalizePage(`/${pageName}`)
-      })
+      })), [])
 
     // Call all the doneCallbacks
     Object.keys(entries).forEach((page) => {
       const entryInfo = entries[page]
       if (entryInfo.status !== BUILDING) return
 
-      // With this, we are triggering a filesystem based watch trigger
-      // It'll memorize some timestamp related info related to common files used
-      // in the page
-      // That'll reduce the page building time significantly.
-      if (!touchedAPage) {
-        setTimeout(() => {
-          touch.sync(entryInfo.pathname)
-        }, 1000)
-        touchedAPage = true
-      }
-
       entryInfo.status = BUILT
-      entries[page].lastActiveTime = Date.now()
       doneCallbacks.emit(page)
     })
 
@@ -124,7 +93,7 @@ export default function onDemandEntryHandler (devMiddleware, compiler, {
       const pathname = await resolvePath(pagePath)
       const name = normalizePageEntryName(pathname, dir)
 
-      const entry = [`${pathname}?entry`]
+      const entry = [pathname]
 
       await new Promise((resolve, reject) => {
         const entryInfo = entries[page]
@@ -143,7 +112,8 @@ export default function onDemandEntryHandler (devMiddleware, compiler, {
 
         console.log(`> Building page: ${page}`)
 
-        entries[page] = { name, entry, pathname, status: ADDED }
+        compiler.setEntry(name, pathname)
+        entries[page] = { name, entry, pathname, status: BUILDING }
         doneCallbacks.on(page, processCallback)
 
         invalidator.invalidate()
@@ -181,16 +151,6 @@ export default function onDemandEntryHandler (devMiddleware, compiler, {
   }
 }
 
-function addEntry (compilation, context, name, entry) {
-  return new Promise((resolve, reject) => {
-    const dep = DynamicEntryPlugin.createDependency(entry, name)
-    compilation.addEntry(context, dep, name, (err) => {
-      if (err) return reject(err)
-      resolve()
-    })
-  })
-}
-
 // /index and / is the same. So, we need to identify both pages as the same.
 // This also applies to sub pages as well.
 function normalizePage (page) {
@@ -200,10 +160,18 @@ function normalizePage (page) {
 // Make sure only one invalidation happens at a time
 // Otherwise, webpack hash gets changed and it'll force the client to reload.
 class Invalidator {
-  constructor (devMiddleware) {
+  constructor (devMiddleware, compilers) {
     this.devMiddleware = devMiddleware
-    this.building = false
+    this.compilers = compilers
+    this.building = {}
     this.rebuildAgain = false
+
+    compilers.forEach((compiler) => {
+      compiler.hooks.make.tap('onDemandEntryHandler', () => {
+        console.log(`Rebuilding ${compiler.name}`)
+        this.startBuilding(compiler.name)
+      })
+    })
   }
 
   invalidate () {
@@ -211,21 +179,26 @@ class Invalidator {
     // (If aborted, it'll cause a client side hard reload)
     // But let it to invalidate just after the completion.
     // So, it can re-build the queued pages at once.
-    if (this.building) {
+    if (this.building.client || this.building.server) {
       this.rebuildAgain = true
       return
     }
 
-    this.building = true
+    // Explicit invalidate does not trigger the invaidate hook,
+    // which will cause multiple done callbacks to trigger from
+    // the multi-compiler
+    this.compilers.forEach((compiler) => {
+      compiler.hooks.invalid.call()
+    })
     this.devMiddleware.invalidate()
   }
 
-  startBuilding () {
-    this.building = true
+  startBuilding (name) {
+    this.building[name] = true
   }
 
   doneBuilding () {
-    this.building = false
+    this.building = {}
     if (this.rebuildAgain) {
       this.rebuildAgain = false
       this.invalidate()

@@ -5,7 +5,6 @@ import uuid from 'uuid'
 import del from 'del'
 import webpack from './webpack'
 import replaceCurrentBuild from './replace'
-import md5File from 'md5-file/promise'
 
 export default async function build (dir, conf = null) {
   const buildId = uuid.v4()
@@ -52,9 +51,6 @@ async function writeBuildStats (dir, stats) {
   // It's created by merging a few assets. (commons.js and main.js)
   // So, we need to generate the hash ourself.
   const assetHashMap = {
-    'app.js': {
-      hash: await md5File(join(dir, '.next', 'bundles', 'app.js'))
-    }
   }
   const buildStatsPath = join(dir, '.next', 'build-stats.json')
   await fs.writeFile(buildStatsPath, JSON.stringify(assetHashMap), 'utf8')

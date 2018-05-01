@@ -1,1 +1,1 @@
-module.exports = require('./dist/lib/dynamic')
+module.exports = require('./dist/node/lib/dynamic')
