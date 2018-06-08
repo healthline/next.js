@@ -16,12 +16,7 @@ const babelNodeConfig = {
 }
 
 export async function compile (task) {
-  await task.parallel(['bin', 'server', 'lib', 'client'])
-}
-
-export async function bin (task, opts) {
-  await task.source('bin/*').babel(babelNodeConfig).target('dist/node/bin', {mode: '0755'})
-  notify('Compiled binaries')
+  await task.parallel(['server', 'lib', 'client'])
 }
 
 export async function lib (task, opts) {
@@ -51,7 +46,6 @@ export async function build (task) {
 
 export default async function (task) {
   await task.start('build')
-  await task.watch('bin/*', 'bin')
   await task.watch('pages/**/*.js', 'copy')
   await task.watch('server/**/*.js', 'server')
   await task.watch('client/**/*.js', 'client')

@@ -1,45 +1,72 @@
 import { resolve, join, sep } from 'path'
 import { parse as parseUrl } from 'url'
-import { parse as parseQs } from 'querystring'
 import fs from 'fs'
-import http, { STATUS_CODES } from 'http'
-import {
-  renderToHTML,
-  renderErrorToHTML,
-  sendHTML,
-  serveStatic,
-  renderScriptError
-} from './render'
+import send from 'send'
+
+import Boom from 'boom'
 import Router from './router'
-import { getAvailableChunks, nextModuleDir } from './utils'
+import { getAvailableChunks } from './utils'
 import getConfig from './config'
+import { serializeError } from './render'
 
-const internalPrefixes = [
-  /^\/_next\//,
-  /^\/static\//
-]
+function serveStatic (req, res, path) {
+  res.setHeader('Cache-Control', 'no-store, must-revalidate')
 
-const blockedPages = {
-  '/_document': true,
-  '/_error': true
+  return new Promise((resolve, reject) => {
+    send(req, path)
+      .on('directory', () => {
+      // We don't allow directories to be read.
+        const err = new Error('No directory access')
+        err.code = 'ENOENT'
+        reject(err)
+      })
+      .on('error', reject)
+      .pipe(res)
+      .on('finish', resolve)
+  })
+}
+
+async function renderScriptError (req, res, page, error, customFields, { dev }) {
+  page = page.replace(/(\/index)?\.js/, '') || '/'
+
+  // Asks CDNs and others to not to cache the errored page
+  res.setHeader('Cache-Control', 'no-store, must-revalidate')
+  // prevent XSS attacks by filtering the page before printing it.
+  page = JSON.stringyf(page)
+  res.setHeader('Content-Type', 'text/javascript')
+
+  if (error.code === 'ENOENT') {
+    res.end(`
+      window.__NEXT_REGISTER_PAGE(${page}, function() {
+        var error = new Error('Page does not exist: ${page}')
+        error.statusCode = 404
+
+        return { error: error }
+      })
+    `)
+    return
+  }
+
+  const errorJson = {
+    ...serializeError(dev, error),
+    ...customFields
+  }
+
+  res.end(`
+    window.__NEXT_REGISTER_PAGE('${page}', function() {
+      var error = ${JSON.stringify(errorJson)}
+      return { error: error }
+    })
+  `)
 }
 
 export default class Server {
   constructor ({ dir = '.', dev = false, quiet = false, conf = null } = {}) {
-    // When in dev mode, remap the inline source maps that we generate within the webpack portion
-    // of the build.
-    // if (dev) {
-    //   require('source-map-support').install({
-    //     hookRequire: true
-    //   })
-    // }
-
     this.dir = resolve(dir)
     this.dev = dev
     this.quiet = quiet
     this.router = new Router()
     this.hotReloader = dev ? this.getHotReloader(this.dir, { quiet, conf }) : null
-    this.http = null
     this.config = getConfig(this.dir, conf)
     this.dist = this.config.distDir
     if (!dev && !fs.existsSync(resolve(dir, this.dist, 'BUILD_ID'))) {
@@ -72,17 +99,11 @@ export default class Server {
       parsedUrl = parseUrl(req.url, true)
     }
 
-    // Parse the querystring ourselves if the user doesn't handle querystring parsing
-    if (typeof parsedUrl.query === 'string') {
-      parsedUrl.query = parseQs(parsedUrl.query)
-    }
-
     res.statusCode = 200
     return this.run(req, res, parsedUrl)
       .catch((err) => {
         if (!this.quiet) console.error(err)
-        res.statusCode = 500
-        res.end(STATUS_CODES[500])
+        throw err
       })
   }
 
@@ -100,35 +121,14 @@ export default class Server {
     if (this.hotReloader) {
       await this.hotReloader.stop()
     }
-
-    if (this.http) {
-      await new Promise((resolve, reject) => {
-        this.http.close((err) => {
-          if (err) return reject(err)
-          return resolve()
-        })
-      })
-    }
   }
 
   defineRoutes () {
     const routes = {
-      '/_next-prefetcher.js': async (req, res, params) => {
-        const p = join(nextModuleDir, 'client/next-prefetcher-bundle.js')
-        await this.serveStatic(req, res, p)
-      },
-
       '/_next/:hash/pages/:path*': async (req, res, params) => {
         const paths = params.path || ['']
         const page = `/${paths.join('/')}`
         const filename = `pages/${page.replace(/\.js$/, '')}.js`
-
-        if (!this.handleBuildHash(filename, params.hash, res)) {
-          const error = new Error('INVALID_BUILD_ID')
-          const customFields = { buildIdMismatched: true }
-
-          return renderScriptError(req, res, page, error, customFields, this.renderOpts)
-        }
 
         if (this.dev && page !== '/_error.js') {
           try {
@@ -163,31 +163,8 @@ export default class Server {
       // See more: https://github.com/zeit/next.js/issues/2617
       '/_next/:hash/:name*': async (req, res, params) => {
         const name = params.name.join('/')
-        if (!this.handleBuildHash(name, params.hash, res)) {
-          const error = new Error('INVALID_BUILD_ID')
-          const customFields = { buildIdMismatched: true }
-
-          return renderScriptError(req, res, name, error, customFields, this.renderOpts)
-        }
-
         const p = join(this.dir, this.dist, 'bundles', name)
         await this.serveStatic(req, res, p)
-      },
-
-      // It's very important keep this route's param optional.
-      // (but it should support as many as params, seperated by '/')
-      // Othewise this will lead to a pretty simple DOS attack.
-      // See more: https://github.com/zeit/next.js/issues/2617
-      '/static/:path*': async (req, res, params) => {
-        const p = join(this.dir, 'static', ...(params.path || []))
-        await this.serveStatic(req, res, p)
-      }
-    }
-
-    if (this.config.useFileSystemPublicRoutes) {
-      routes['/:path*'] = async (req, res, params, parsedUrl) => {
-        const { pathname, query } = parsedUrl
-        await this.render(req, res, pathname, query)
       }
     }
 
@@ -198,20 +175,11 @@ export default class Server {
     }
   }
 
-  async start (port, hostname) {
-    await this.prepare()
-    this.http = http.createServer(this.getRequestHandler())
-    await new Promise((resolve, reject) => {
-      // This code catches EADDRINUSE error if the port is already in use
-      this.http.on('error', reject)
-      this.http.on('listening', () => resolve())
-      this.http.listen(port, hostname)
-    })
-  }
-
   async run (req, res, parsedUrl) {
     if (this.hotReloader) {
       await this.hotReloader.run(req, res)
+    } else {
+      throw new Error(`Don't use this in prod...`)
     }
 
     const fn = this.router.match(req, res, parsedUrl)
@@ -221,96 +189,18 @@ export default class Server {
     }
 
     if (req.method === 'GET' || req.method === 'HEAD') {
-      await this.render404(req, res, parsedUrl)
+      throw Boom.notFound()
     } else {
-      res.statusCode = 501
-      res.end(STATUS_CODES[501])
+      throw Boom.notImplemented()
     }
   }
 
-  async render (req, res, pathname, query, parsedUrl) {
-    if (this.isInternalUrl(req)) {
-      return this.handleRequest(req, res, parsedUrl)
-    }
-
-    if (blockedPages[pathname]) {
-      return this.render404(req, res, parsedUrl)
-    }
-
-    const html = await this.renderToHTML(req, res, pathname, query)
-    return sendHTML(req, res, html, req.method, this.renderOpts)
-  }
-
-  async renderToHTML (req, res, pathname, query) {
-    if (this.dev) {
-      const compilationErr = await this.getCompilationError()
-      if (compilationErr) {
-        res.statusCode = 500
-        return this.renderErrorToHTML(compilationErr, req, res, pathname, query)
-      }
-    }
-
-    try {
-      return await renderToHTML(req, res, pathname, query, this.renderOpts)
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        res.statusCode = 404
-        return this.renderErrorToHTML(null, req, res, pathname, query)
-      } else {
-        if (!this.quiet) console.error(err)
-        res.statusCode = 500
-        return this.renderErrorToHTML(err, req, res, pathname, query)
-      }
-    }
-  }
-
-  async renderError (err, req, res, pathname, query) {
-    const html = await this.renderErrorToHTML(err, req, res, pathname, query)
-    return sendHTML(req, res, html, req.method, this.renderOpts)
-  }
-
-  async renderErrorToHTML (err, req, res, pathname, query) {
-    if (this.dev) {
-      const compilationErr = await this.getCompilationError()
-      if (compilationErr) {
-        res.statusCode = 500
-        return renderErrorToHTML(compilationErr, req, res, pathname, query, this.renderOpts)
-      }
-    }
-
-    try {
-      return await renderErrorToHTML(err, req, res, pathname, query, this.renderOpts)
-    } catch (err2) {
-      if (this.dev) {
-        if (!this.quiet) console.error(err2)
-        res.statusCode = 500
-        return renderErrorToHTML(err2, req, res, pathname, query, this.renderOpts)
-      } else {
-        throw err2
-      }
-    }
-  }
-
-  async render404 (req, res, parsedUrl = parseUrl(req.url, true)) {
-    const { pathname, query } = parsedUrl
-    res.statusCode = 404
-    return this.renderError(null, req, res, pathname, query)
-  }
-
-  async serveStatic (req, res, path) {
+  serveStatic (req, res, path) {
     if (!this.isServeableUrl(path)) {
-      return this.render404(req, res)
+      throw Boom.notFound()
     }
 
-    try {
-      return await serveStatic(req, res, path)
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        this.render404(req, res)
-      } else {
-        throw err
-      }
-    }
+    return serveStatic(req, res, path)
   }
 
   isServeableUrl (path) {
@@ -324,16 +214,6 @@ export default class Server {
     }
 
     return true
-  }
-
-  isInternalUrl (req) {
-    for (const prefix of internalPrefixes) {
-      if (prefix.test(req.url)) {
-        return true
-      }
-    }
-
-    return false
   }
 
   readBuildId () {
@@ -350,25 +230,5 @@ export default class Server {
 
     // Return the very first error we found.
     return Array.from(errors.values())[0][0]
-  }
-
-  handleBuildHash (filename, hash, res) {
-    if (this.dev) {
-      res.setHeader('Cache-Control', 'no-store, must-revalidate')
-      return true
-    }
-
-    if (hash !== this.renderOpts.buildId &&
-        hash !== (this.buildStats[filename] || {}).hash) {
-      return false
-    }
-
-    res.setHeader('Cache-Control', 'max-age=365000000, immutable')
-    return true
-  }
-
-  send404 (res) {
-    res.statusCode = 404
-    res.end('404 - Not Found')
   }
 }
