@@ -142,9 +142,6 @@ async function createConfig (dir, dynamicEntries, { isServer, buildId = '-', dev
     ]
   }] : [])
     .concat([{
-      test: /\.json$/,
-      loader: 'json-loader'
-    }, {
       loader: 'babel-loader',
       include: nextModuleDir,
       exclude (str) {
