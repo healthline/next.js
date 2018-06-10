@@ -106,7 +106,8 @@ export class Main extends Component {
 
 export class NextScript extends Component {
   static propTypes = {
-    nonce: PropTypes.string
+    nonce: PropTypes.string,
+    commonChunks: PropTypes.array
   }
 
   static contextTypes = {
@@ -131,7 +132,7 @@ export class NextScript extends Component {
   getScripts () {
     // In the production mode, we have a single asset with all the JS content.
     // So, we can load the script with async
-    return [this.getChunkScript('vendor.js', { async: true })]
+    return ['vendor.js'].concat(this.props.commonChunks || []).map(name => this.getChunkScript(name, { async: true }))
   }
 
   render () {
