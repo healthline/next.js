@@ -7,7 +7,11 @@ module.exports = function (content, sourceMap) {
   const route = getRoute(this)
 
   this.callback(null, `${content}
-    require('next/page-loader').registerPage(${JSON.stringify(route)}, typeof __webpack_exports__ !== 'undefined' ? __webpack_exports__.default : (module.exports.default || module.exports))
+    require('next/page-loader').registerPage(${JSON.stringify(route)}, function() {
+      return {
+        page: typeof __webpack_exports__ !== 'undefined' ? __webpack_exports__.default : (module.exports.default || module.exports)
+      }
+    })
   `, sourceMap)
 }
 
