@@ -1,65 +1,29 @@
 import { resolve, join } from 'path'
 import webpack from 'webpack'
 import WriteFilePlugin from 'write-file-webpack-plugin'
-import resolveRequest from 'resolve'
 import glob from 'glob-promise'
 import FriendlyErrorsWebpackPlugin from 'friendly-errors-webpack-plugin'
 import CaseSensitivePathPlugin from 'case-sensitive-paths-webpack-plugin'
 import { StatsWriterPlugin } from 'webpack-stats-plugin'
 import getConfig from '../config'
-import rootModuleRelativePath from './root-module-relative-path'
-import { nextModuleDir, nextNodeModulesDir } from '../utils'
 
-// Relative to our dist dir
+const nextPagesDir = join(__dirname, '..', '..', '..', 'pages')
+const nextLibDir = join(__dirname, '..', '..', '..', 'lib')
+const nextClientDir = join(__dirname, '..', '..', '..', 'client')
+const nextNodeModulesDir = join(__dirname, '..', '..', '..', 'node_modules')
 
-const relativeResolve = rootModuleRelativePath(require)
-
-function externalsConfig (dir, isServer) {
-  const externals = []
-
-  if (!isServer) {
-    return externals
-  }
-
-  externals.push((context, request, callback) => {
-    resolveRequest(request, { basedir: dir, preserveSymlinks: true }, (err, res) => {
-      if (err) {
-        return callback()
-      }
-
-      // // Webpack itself has to be compiled because it doesn't always use module relative paths
-      // if (res.match(/node_modules[/\\]webpack/)) {
-      //   return callback()
-      // }
-
-      if (res.match(/node_modules[/\\].*\.js$/)) {
-        return callback(null, `commonjs ${request}`)
-      }
-
-      // Default pages have to be transpiled
-      if (res.indexOf(nextModuleDir) === 0) {
-        return callback()
-      }
-
-      callback()
-    })
-  })
-
-  return externals
-}
-
-async function createConfig (dir, dynamicEntries, { isServer, buildId = '-', dev = false, quiet = false, buildDir, conf = null } = {}) {
+async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, quiet = false, buildDir, conf = null } = {}) {
   dir = resolve(dir)
   const config = getConfig(dir, conf)
   const defaultEntries = dev ? [
-    join(nextModuleDir, 'client', 'webpack-hot-middleware-client')
+    require.resolve('../../../client/webpack-hot-middleware-client')
   ] : []
   const mainJS = dev
-    ? require.resolve('../../../../client/next-dev') : require.resolve('../../../../client/next')
+    ? require.resolve('../../../client/next-dev') : require.resolve('../../../client/next')
 
   const entry = async () => {
     const entries = {}
-    const base = isServer ? [] : [
+    const base = [
       ...defaultEntries,
       ...config.clientBootstrap || [],
       mainJS
@@ -67,21 +31,22 @@ async function createConfig (dir, dynamicEntries, { isServer, buildId = '-', dev
 
     // In the dev environment, on-demand-entry-handler will take care of
     // managing pages.
-    const loader = isServer ? '' : 'page-loader!'
-    const modeDefaultPages = isServer ? ['_error.js', '_document.js'] : ['_error.js']
-    const allPages = (await glob('./pages/**/*.js', { cwd: dir })).filter((p) => !/\.test\.js/.test(p))
+    const loader = 'page-loader!'
+    const modeDefaultPages = ['_error.js']
+    const allPages = (await glob('./pages/**/*.js', { cwd: dir })).filter((p) => p !== 'pages/_document.js' && !/\.test\.js/.test(p))
     const entryPages = dev
       ? allPages
         .filter((p) => modeDefaultPages.find((defaultPage) => p.endsWith(defaultPage)))
         .concat(Object.values(dynamicEntries()))
       : allPages
+
     for (const p of entryPages) {
       entries[p.replace(/^.*?\/pages\//, 'pages/').replace(/^(pages\/.*)\/index.js$/, '$1.js')] = base.concat(`${loader}${p}`)
     }
     for (const p of modeDefaultPages) {
       const entryName = join('pages', p)
       if (!entries[entryName]) {
-        entries[entryName] = `${loader}${join(nextModuleDir, 'pages', p)}`
+        entries[entryName] = `${loader}${join(nextPagesDir, p)}`
       }
     }
 
@@ -117,7 +82,7 @@ async function createConfig (dir, dynamicEntries, { isServer, buildId = '-', dev
   } else {
     plugins.push(new webpack.NormalModuleReplacementPlugin(
       /react-hot-loader/,
-      require.resolve('../../client/hot-module-loader.stub')
+      require.resolve('../../../client/hot-module-loader.stub')
     ))
   }
   plugins.push(
@@ -127,31 +92,29 @@ async function createConfig (dir, dynamicEntries, { isServer, buildId = '-', dev
   )
 
   const mainBabelOptions = {
-    cacheDirectory: true,
-    presets: [
-      [require.resolve('./babel/preset'), {isServer: !!isServer}]
-    ]
+    cacheDirectory: true
   }
 
-  const rules = (!isServer && dev ? [{
+  const rules = (dev ? [{
     test: /\.js(\?[^?]*)?$/,
     loader: 'hot-self-accept-loader',
     include: [
       join(dir, 'pages'),
-      join(nextModuleDir, 'pages')
+      join(nextPagesDir)
     ]
   }] : [])
-    .concat([{
+    .concat([nextPagesDir, nextClientDir, nextLibDir].map(dir => ({
       loader: 'babel-loader',
-      include: nextModuleDir,
-      exclude (str) {
-        return /node_modules/.test(str)
-      },
+      include: dir,
       options: {
         babelrc: false,
         cacheDirectory: true,
         presets: [require.resolve('./babel/preset')]
       }
+    })))
+    .concat([{
+      test: /\.json$/,
+      loader: 'json-loader'
     }, {
       test: /\.js(\?[^?]*)?$/,
       loader: 'babel-loader',
@@ -162,13 +125,12 @@ async function createConfig (dir, dynamicEntries, { isServer, buildId = '-', dev
       options: mainBabelOptions
     }])
 
-  const path = join(buildDir ? join(buildDir, '.next') : join(dir, config.distDir), isServer ? 'server' : 'bundles')
+  const path = join(buildDir ? join(buildDir, '.next') : join(dir, config.distDir), 'bundles')
 
   let webpackConfig = {
-    name: isServer ? 'server' : 'client',
+    name: 'client',
     mode: dev ? 'development' : 'production',
-    target: isServer ? 'node' : 'web',
-    externals: externalsConfig(dir, isServer),
+    target: 'web',
     context: dir,
     entry,
     output: {
@@ -176,9 +138,8 @@ async function createConfig (dir, dynamicEntries, { isServer, buildId = '-', dev
       filename: '[name]',
       publicPath: `/_next/${buildId}/`,
       strictModuleExceptionHandling: true,
-      libraryTarget: isServer ? 'commonjs2' : undefined,
       // This saves chunks with the name given via require.ensure()
-      chunkFilename: !dev && !isServer ? '[name]-[chunkhash:5].js' : '[name].js'
+      chunkFilename: !dev ? '[name]-[chunkhash:5].js' : '[name].js'
     },
     resolve: {
       modules: [
@@ -186,16 +147,7 @@ async function createConfig (dir, dynamicEntries, { isServer, buildId = '-', dev
         'node_modules'
       ],
       alias: {
-        'babel-runtime': relativeResolve('babel-runtime/package'),
-        'html-entities': join(nextModuleDir, './lib/html-entities'),
-        'next/link': join(nextModuleDir, './lib/link'),
-        'next/dynamic': join(nextModuleDir, './lib/dynamic'),
-        'next/same-loop-promise': join(nextModuleDir, './lib/same-loop-promise'),
-        'next/page-loader': join(nextModuleDir, './lib/page-loader'),
-        'next/head': join(nextModuleDir, './lib/head'),
-        'next/document': join(nextModuleDir, './server/document'),
-        'next/router': join(nextModuleDir, './lib/router'),
-        'next/error': join(nextModuleDir, './lib/error')
+        'html-entities': join(nextLibDir, './html-entities')
       }
     },
     resolveLoader: {
@@ -212,8 +164,8 @@ async function createConfig (dir, dynamicEntries, { isServer, buildId = '-', dev
     devtool: dev ? 'nosources-inline-source-map' : 'source-map',
 
     optimization: {
-      namedModules: !dev && !isServer,
-      minimize: !dev && !isServer,
+      namedModules: !dev,
+      minimize: !dev,
       splitChunks: { // CommonsChunkPlugin()
         name: true,
         cacheGroups: {
@@ -233,7 +185,7 @@ async function createConfig (dir, dynamicEntries, { isServer, buildId = '-', dev
 
   if (config.webpack) {
     console.log(`> Using "webpack" config function defined in ${config.configOrigin}.`)
-    webpackConfig = await config.webpack(webpackConfig, { buildId, dev, isServer })
+    webpackConfig = await config.webpack(webpackConfig, { buildId, dev })
   }
   return webpackConfig
 }

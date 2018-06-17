@@ -6,7 +6,7 @@ import { MATCH_ROUTE_NAME, IS_BUNDLED_PAGE, normalizePageEntryName } from './uti
 const BUILDING = Symbol('building')
 const BUILT = Symbol('built')
 
-export default function onDemandEntryHandler (devMiddleware, compiler, {
+export default function onDemandEntryHandler (devMiddleware, webpackCompiler, babelCompiler, {
   dir,
   dev,
   reload,
@@ -15,12 +15,12 @@ export default function onDemandEntryHandler (devMiddleware, compiler, {
 }) {
   let entries = {}
   let doneCallbacks = new EventEmitter()
-  const invalidator = new Invalidator(devMiddleware, compiler.compilers)
+  const invalidator = new Invalidator(devMiddleware, webpackCompiler.compilers)
   let reloading = false
   let stopped = false
   let reloadCallbacks = new EventEmitter()
 
-  compiler.hooks.done.tap('onDemandEntryHandler', function (multiStats) {
+  webpackCompiler.hooks.done.tap('onDemandEntryHandler', function (multiStats) {
     const hardFailedPages = multiStats.stats.reduce((prev, {compilation}) => prev.concat(compilation.errors
       .filter(e => {
         // Make sure to only pick errors which marked with missing modules
@@ -112,7 +112,8 @@ export default function onDemandEntryHandler (devMiddleware, compiler, {
 
         console.log(`> Building page: ${page}`)
 
-        compiler.setEntry(name, pathname)
+        webpackCompiler.setEntry(name, pathname)
+        babelCompiler.setEntry(name, pathname)
         entries[page] = { name, entry, pathname, status: BUILDING }
         doneCallbacks.on(page, processCallback)
 
