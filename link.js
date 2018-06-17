@@ -1,1 +1,1 @@
-module.exports = require('./dist/node/lib/link')
+module.exports = require('./node/lib/link')

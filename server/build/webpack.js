@@ -7,19 +7,17 @@ import CaseSensitivePathPlugin from 'case-sensitive-paths-webpack-plugin'
 import { StatsWriterPlugin } from 'webpack-stats-plugin'
 import getConfig from '../config'
 
-const nextPagesDir = join(__dirname, '..', '..', '..', 'pages')
-const nextLibDir = join(__dirname, '..', '..', '..', 'lib')
-const nextClientDir = join(__dirname, '..', '..', '..', 'client')
-const nextNodeModulesDir = join(__dirname, '..', '..', '..', 'node_modules')
+const nextPagesDir = join(__dirname, '../../../browser/pages')
+const nextNodeModulesDir = join(__dirname, '../../../node_modules')
 
 async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, quiet = false, buildDir, conf = null } = {}) {
   dir = resolve(dir)
   const config = getConfig(dir, conf)
   const defaultEntries = dev ? [
-    require.resolve('../../../client/webpack-hot-middleware-client')
+    require.resolve('../../../browser/client/webpack-hot-middleware-client')
   ] : []
   const mainJS = dev
-    ? require.resolve('../../../client/next-dev') : require.resolve('../../../client/next')
+    ? require.resolve('../../../browser/client/next-dev') : require.resolve('../../../browser/client/next')
 
   const entry = async () => {
     const entries = {}
@@ -54,14 +52,6 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
   }
 
   const plugins = [
-    // new webpack.LoaderOptionsPlugin({
-    //   options: {
-    //     context: dir,
-    //     customInterpolateName (url, name, opts) {
-    //       return interpolateNames.get(this.resourcePath) || url
-    //     }
-    //   }
-    // }),
     new WriteFilePlugin({
       exitOnErrors: false,
       log: false,
@@ -82,7 +72,7 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
   } else {
     plugins.push(new webpack.NormalModuleReplacementPlugin(
       /react-hot-loader/,
-      require.resolve('../../../client/hot-module-loader.stub')
+      require.resolve('../../../browser/client/hot-module-loader.stub')
     ))
   }
   plugins.push(
@@ -103,15 +93,6 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
       join(nextPagesDir)
     ]
   }] : [])
-    .concat([nextPagesDir, nextClientDir, nextLibDir].map(dir => ({
-      loader: 'babel-loader',
-      include: dir,
-      options: {
-        babelrc: false,
-        cacheDirectory: true,
-        presets: [require.resolve('./babel/preset')]
-      }
-    })))
     .concat([{
       test: /\.json$/,
       loader: 'json-loader'
@@ -134,6 +115,7 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
     context: dir,
     entry,
     output: {
+      pathinfo: !!dev,
       path,
       filename: '[name]',
       publicPath: `/_next/${buildId}/`,
@@ -147,7 +129,8 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
         'node_modules'
       ],
       alias: {
-        'html-entities': join(nextLibDir, './html-entities')
+        'html-entities': resolve('../../../browser/lib/html-entities'),
+        'object-assign': 'core-js/fn/object/assign'
       }
     },
     resolveLoader: {
