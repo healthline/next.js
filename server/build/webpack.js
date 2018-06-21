@@ -130,7 +130,8 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
       ],
       alias: {
         'html-entities': resolve('../../../browser/lib/html-entities'),
-        'object-assign': 'core-js/fn/object/assign'
+        'object-assign': 'core-js/fn/object/assign',
+        'strip-ansi': resolve('../../../browser/client/strip-ansi.stub')
       }
     },
     resolveLoader: {
