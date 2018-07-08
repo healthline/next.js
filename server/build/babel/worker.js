@@ -64,8 +64,14 @@ async function handle (filenameOrDir, rootFile, requestor, options, response, on
   let relative = Path.relative(base, filenameOrDir)
 
   const ext = Path.extname(relative)
-  if ((ext && !['.js', '.jsx'].includes(ext)) || /__tests__|node_modules/.test(relative)) {
+
+  if ((ext && !['.js', '.jsx', '.json'].includes(ext)) || /__tests__|node_modules/.test(relative)) {
     return 0
+  }
+
+  if (ext === '.json') {
+    outputFileSync(Path.join(options.outDir, relative), FS.readFileSync(filenameOrDir))
+    return 1
   }
 
   // remove extension and then append back on .js
@@ -74,15 +80,12 @@ async function handle (filenameOrDir, rootFile, requestor, options, response, on
   const dest = Path.join(options.outDir, relative)
 
   if (building[dest]) {
-    if (requestor !== rootFile) {
-      building[dest].add(requestor)
-    }
+    building[dest].add(requestor)
+    building[requestor].forEach((a) => building[dest].add(a))
     return 0
   }
   building[dest] = building[filenameOrDir] = new Set(building[requestor])
-  if (requestor !== rootFile) {
-    building[dest].add(requestor)
-  }
+  building[dest].add(requestor)
 
   const stat = FS.statSync(filenameOrDir)
 
@@ -155,7 +158,7 @@ async function write (filename, dest, base, rootFile, options, response, onBuilt
       filename,
       dest,
       locals,
-      parents: Array.from(building[filename])
+      parents: Object.keys(building)
     })
 
     return locals + 1
