@@ -3,15 +3,15 @@ import WebpackDevMiddleware from 'webpack-dev-middleware'
 import WebpackHotMiddleware from 'webpack-hot-middleware'
 import onDemandEntryHandler from './on-demand-entry-handler'
 import webpack from './build/webpack'
-import clean from './build/clean'
 import getConfig from './config'
 import { IS_BUNDLED_PAGE } from './utils'
 import { watch } from './build/babel'
 
 export default class HotReloader {
-  constructor (dir, { quiet, conf } = {}) {
+  constructor (dir, { quiet, conf, initialDevBuild }) {
     this.dir = dir
     this.quiet = quiet
+    this.initialDevBuild = initialDevBuild
     this.middlewares = []
     this.webpackDevMiddleware = null
     this.webpackHotMiddleware = null
@@ -21,11 +21,6 @@ export default class HotReloader {
     this.prevChunkNames = null
     this.prevFailedChunkNames = null
     this.prevChunkHashes = null
-    // Here buildId could be any value.
-    // Our router accepts any value in the dev mode.
-    // But for the webpack-compiler and for the webpack-dev-server
-    // it should be the same value.
-    this.buildId = '-'
 
     this.config = getConfig(dir, conf)
   }
@@ -43,19 +38,14 @@ export default class HotReloader {
 
   async start () {
     const [webpackCompiler] = await Promise.all([
-      webpack(this.dir, { buildId: this.buildId, dev: true, quiet: this.quiet }),
-      clean(this.dir)
+      webpack(this.dir, { dev: true, quiet: this.quiet })
     ])
     const babelCompiler = {
       setEntry: (name, pathname) => {
         watch([pathname], {
           base: this.dir,
-          outDir: join(this.dir, '.next', 'server')
-        }, (msg) => {
-          if (msg.cmd === 'file-built') {
-            deleteCache(msg.dest)
-            msg.parents.forEach(deleteCache)
-          }
+          outDir: join(this.dir, '.next', 'server'),
+          staticDir: join(this.dir, '.next', 'static')
         })
       }
     }
@@ -84,8 +74,7 @@ export default class HotReloader {
     this.stats = null
 
     const [compiler] = await Promise.all([
-      webpack(this.dir, { buildId: this.buildId, dev: true, quiet: this.quiet }),
-      clean(this.dir)
+      webpack(this.dir, { dev: true, quiet: this.quiet })
     ])
 
     const buildTools = await this.prepareBuildTools(compiler)
@@ -109,14 +98,15 @@ export default class HotReloader {
   }
 
   async prepareBuildTools (webpackCompiler, babelCompiler) {
-    webpackCompiler.hooks.done.tap('prepareBuildTools', (multiStats) => {
+    webpackCompiler.hooks.done.tap('prepareBuildTools', (stats) => {
+      const { compilation } = stats;
       const chunkNames = new Set(
-        multiStats.stats.reduce((prev, {compilation}) => prev.concat(compilation.chunks), [])
+        compilation.chunks
           .map((c) => c.name)
           .filter(name => IS_BUNDLED_PAGE.test(name))
       )
 
-      const failedChunkNames = new Set(multiStats.stats.reduce((prev, {compilation}) => prev.concat(compilation.errors), [])
+      const failedChunkNames = new Set(compilation.errors
         .map((e) => e.module && e.module.reasons)
         .reduce((a, b) => a.concat(b), [])
         .filter(Boolean)
@@ -125,7 +115,7 @@ export default class HotReloader {
         .map((c) => c.name))
 
       const chunkHashes = new Map(
-        multiStats.stats.reduce((prev, {compilation}) => prev.concat(compilation.chunks), [])
+        compilation.chunks
           .filter(c => IS_BUNDLED_PAGE.test(c.name))
           .map((c) => [c.name, c.hash])
       )
@@ -173,7 +163,7 @@ export default class HotReloader {
     ]
 
     let webpackDevMiddlewareConfig = {
-      publicPath: `/_next/${this.buildId}/webpack/`,
+      publicPath: `/_next/-/webpack/`,
       noInfo: true,
       quiet: true,
       hot: true,
@@ -200,6 +190,10 @@ export default class HotReloader {
       reload: this.reload.bind(this),
       ...this.config.onDemandEntries
     })
+
+    if (this.initialDevBuild) {
+      await onDemandEntries.ensureAllPages()
+    }
 
     return {
       webpackDevMiddleware,
@@ -248,10 +242,6 @@ export default class HotReloader {
   ensurePage (page) {
     return this.onDemandEntries.ensurePage(page)
   }
-}
-
-function deleteCache (path) {
-  delete require.cache[path]
 }
 
 function diff (a, b) {

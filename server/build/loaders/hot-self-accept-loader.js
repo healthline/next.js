@@ -1,5 +1,4 @@
 import { resolve, relative } from 'path'
-import { nextModuleDir } from '../../utils'
 
 module.exports = function (content, sourceMap) {
   this.cacheable()
@@ -32,13 +31,9 @@ module.exports = function (content, sourceMap) {
   `, sourceMap)
 }
 
-const nextPagesDir = resolve(nextModuleDir, 'pages')
-
 function getRoute (loaderContext) {
   const pagesDir = resolve(loaderContext.rootContext, 'pages')
   const { resourcePath } = loaderContext
-  const dir = [pagesDir, nextPagesDir]
-    .find((d) => resourcePath.indexOf(d) === 0)
-  const path = relative(dir, resourcePath)
+  const path = relative(pagesDir, resourcePath)
   return '/' + path.replace(/((^|\/)index)?\.js$/, '')
 }

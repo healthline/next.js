@@ -1,142 +1,101 @@
 import { join } from 'path'
-import { existsSync } from 'fs'
 import { createElement } from 'react'
 import { renderToString, renderToStaticMarkup } from 'react-dom/server'
 import stripAnsi from 'strip-ansi'
-import resolve from './resolve'
-import getConfig from './config'
 import { Router } from '../lib/router'
-import { loadGetInitialProps } from '../lib/utils'
 import Head, { defaultHead } from '../lib/head'
 import App from '../lib/app'
-import { flushChunks } from '../lib/dynamic'
 
-export function renderToHTML (req, res, pathname, query, opts) {
-  return doRender(req, res, pathname, query, opts)
-}
-
-export function renderBackpressureToHTML (req, res, pathname, query, opts = {}) {
-  return doRender(req, res, pathname, query, { ...opts, overloadCheck: () => true })
-}
-
-export function renderErrorToHTML (err, req, res, pathname, query, opts = {}) {
-  return doRender(req, res, pathname, query, { ...opts, err, page: '_error' })
-}
-
-async function doRender (req, res, pathname, query, {
+export async function doPageRender (req, res, pathname, query, {
+  dev,
   err,
+  publicPath,
   page,
-  buildId,
-  buildStats,
   hotReloader,
-  assetPrefix,
-  availableChunks,
-  dir = process.cwd(),
-  dev = false,
-  staticMarkup = false,
-  overloadCheck = () => false
-} = {}) {
+  dir,
+  overloadCheck = () => false,
+  enhancer = Page => Page
+}) {
   pathname = pathname.replace(/\/index/, '') || '/index'
   page = page || pathname
 
   await ensurePage(page, { dir, hotReloader })
 
-  const dist = getConfig(dir).distDir
-  const pageDir = join(dir, dist, 'server', 'pages')
+  const pageDir = join(dir, '.next', 'server', 'pages')
 
-  const [pagePath, documentPath] = await Promise.all([
-    resolve(join(pageDir, page)),
-    resolve(join(pageDir, '_document'))
-  ])
-
-  let [Component, Document] = [
-    require(pagePath),
-    require(documentPath)
-  ]
-
+  let Component = require(join(pageDir, page))
   Component = Component.default || Component
-  Document = Document.default || Document
+
   const asPath = req.url
-  const ctx = { err, req, res, pathname, query, asPath }
-  const props = await loadGetInitialProps(Component, ctx)
+  const props = await Component.getInitialProps({ err, req, res, pathname, query, asPath })
 
-  // the response might be finshed on the getinitialprops call
-  if (res.finished) return
-
-  const renderPage = (enhancer = Page => Page) => {
-    const chunks = loadChunks({ dev, dir, dist, availableChunks })
-
-    if (overloadCheck()) {
-      return {
-        html: '',
-        head: defaultHead(),
-        errorHtml: '',
-        chunks
-      }
-    }
-
-    const app = createElement(App, {
-      Component: enhancer(Component),
-      props,
-      router: new Router(pathname, query, asPath)
-    })
-
-    const render = renderToString
-
-    let html
-    let head
-    let errorHtml = ''
-
-    try {
-      if (err) {
-        errorHtml = render(app)
-      } else {
-        html = render(app)
-      }
-    } finally {
-      head = Head.rewind() || defaultHead()
-    }
-
-    return { html, head, errorHtml, chunks }
-  }
-
-  const docProps = await loadGetInitialProps(Document, { ...ctx, renderPage })
-
-  if (res.finished) return
-
-  if (!Document.prototype || !Document.prototype.isReactComponent) throw new Error('_document.js is not exporting a React element')
-  const doc = createElement(Document, {
-    __NEXT_DATA__: {
-      props,
+  if (overloadCheck()) {
+    return {
       pathname,
       query,
-      buildId,
-      buildStats,
-      assetPrefix,
-      err: (err) ? serializeError(dev, err) : null
+      props,
+      head: renderToString(defaultHead)
+    }
+  }
+
+  const app = createElement(App, {
+    Component: enhancer(Component),
+    props,
+    router: new Router(pathname, query, asPath)
+  })
+
+  let html
+  let head
+  let errorHtml
+
+  try {
+    if (err) {
+      errorHtml = renderToString(app)
+    } else {
+      html = renderToString(app)
+    }
+  } finally {
+    head = Head.rewind() || defaultHead
+  }
+
+  return {
+    err: serializeError(dev, err),
+    pathname,
+    query,
+    props,
+    head: renderToString(head),
+    html,
+    publicPath,
+    errorHtml
+  }
+}
+
+export async function doDocRender (page, initialProps, { dev, dir, publicPath }) {
+  const pageDir = join(dir, '.next', 'server', 'pages')
+
+  let Document = require(join(pageDir, '_document'))
+  Document = Document.default || Document
+
+  const docProps = await Document.getInitialProps({ initialProps, renderPage: () => page })
+  const doc = createElement(Document, {
+    __NEXT_DATA__: {
+      props: docProps.props,
+      pathname: docProps.pathname,
+      query: docProps.query,
+      publicPath: docProps.publicPath || publicPath,
+      err: docProps.err
     },
     dev,
-    dir,
     ...docProps
   })
 
   return '<!DOCTYPE html>' + renderToStaticMarkup(doc)
 }
 
-function errorToJSON (err) {
-  const { name, message, stack } = err
-  const json = { name, message: stripAnsi(message), stack: stripAnsi(stack) }
-
-  if (err.module) {
-    // rawRequest contains the filename of the module which has the error.
-    const { rawRequest } = err.module
-    json.module = { rawRequest }
-  }
-
-  return json
-}
-
 export function serializeError (dev, err) {
+  if (!err) {
+    return undefined
+  }
   if (err.output && err.output.payload) {
     return err.output.payload
   }
@@ -144,7 +103,16 @@ export function serializeError (dev, err) {
     return { name: err.name, message: err.message, status: err.status }
   }
   if (dev) {
-    return errorToJSON(err)
+    const { name, message, stack } = err
+    const json = { name, message: stripAnsi(message), stack: stripAnsi(stack) }
+
+    if (err.module) {
+      // rawRequest contains the filename of the module which has the error.
+      const { rawRequest } = err.module
+      json.module = { rawRequest }
+    }
+
+    return json
   }
 
   return { message: '500 - Internal Server Error.' }
@@ -155,19 +123,4 @@ async function ensurePage (page, { dir, hotReloader }) {
   if (page === '_error' || page === '_document') return
 
   await hotReloader.ensurePage(page)
-}
-
-function loadChunks ({ dev, dir, dist, availableChunks }) {
-  const flushedChunks = flushChunks()
-  const validChunks = []
-
-  for (var chunk of flushedChunks) {
-    const filename = join(dir, dist, 'chunks', chunk)
-    const exists = dev ? existsSync(filename) : availableChunks[chunk]
-    if (exists) {
-      validChunks.push(chunk)
-    }
-  }
-
-  return validChunks
 }

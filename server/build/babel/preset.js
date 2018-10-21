@@ -9,7 +9,8 @@ const envPlugins = {
 
 const plugins = envPlugins[process.env.NODE_ENV] || envPlugins['development']
 
-const isServer = !!process.env.IS_SERVER
+const isJest = !!process.env.JEST_WORKER_ID
+const isServer = !!process.env.IS_SERVER || isJest
 
 module.exports = (context, opts = {}) => ({
   presets: [
@@ -37,7 +38,7 @@ module.exports = (context, opts = {}) => ({
     }],
 
     [require.resolve('babel-plugin-transform-define'), {
-      'typeof window': isServer ? 'undefined' : 'object'
+      'typeof window': isServer && !isJest ? 'undefined' : 'object'
     }],
 
     ...plugins,
@@ -48,7 +49,6 @@ module.exports = (context, opts = {}) => ({
         alias: {
           'next/client': isServer ? undefined : '@kpdecker/next/browser/client',
           'next/link': isServer ? '@kpdecker/next/node/lib/link' : '@kpdecker/next/browser/lib/link',
-          'next/dynamic': isServer ? '@kpdecker/next/node/lib/dynamic' : '@kpdecker/next/browser/lib/dynamic',
           'next/head': isServer ? '@kpdecker/next/node/lib/head' : '@kpdecker/next/browser/lib/head',
           'next/document': isServer ? '@kpdecker/next/node/server/document' : undefined,
           'next/same-loop-promise': isServer ? '@kpdecker/next/node/lib/same-loop-promise' : '@kpdecker/next/browser/lib/same-loop-promise',

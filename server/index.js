@@ -5,7 +5,6 @@ import send from 'send'
 
 import Boom from 'boom'
 import Router from './router'
-import { getAvailableChunks } from './utils'
 import getConfig from './config'
 import { serializeError } from './render'
 
@@ -68,21 +67,17 @@ export default class Server {
     this.router = new Router()
     this.hotReloader = dev ? this.getHotReloader(this.dir, { quiet, conf }) : null
     this.config = getConfig(this.dir, conf)
-    this.dist = this.config.distDir
-    if (!dev && !fs.existsSync(resolve(dir, this.dist, 'BUILD_ID'))) {
-      console.error(`> Could not find a valid build in the '${this.dist}' directory! Try building your app with 'next build' before starting the server.`)
+    if (!dev && !fs.existsSync(resolve(dir, '.next', 'BUILD_ID'))) {
+      console.error(`> Could not find a valid build in the '${'.next'}' directory! Try building your app with 'next build' before starting the server.`)
       process.exit(1)
     }
-    this.buildStats = !dev ? require(join(this.dir, this.dist, 'build-stats.json')) : null
-    this.buildId = !dev ? this.readBuildId() : '-'
+    const buildId = !dev ? this.readBuildId() : '-'
+    const assetPrefix = (this.config.assetPrefix || '').replace(/\/$/, '')
     this.renderOpts = {
       dev,
       dir: this.dir,
       hotReloader: this.hotReloader,
-      buildStats: this.buildStats,
-      buildId: this.buildId,
-      assetPrefix: this.config.assetPrefix.replace(/\/$/, ''),
-      availableChunks: dev ? {} : getAvailableChunks(this.dir, this.dist)
+      publicPath: `${assetPrefix}/_next/${buildId}/`
     }
 
     this.defineRoutes()
@@ -145,7 +140,7 @@ export default class Server {
         }
 
         try {
-          const realPath = join(this.dir, this.dist, 'bundles', filename)
+          const realPath = join(this.dir, '.next', 'bundles', filename)
           await serveStatic(req, res, realPath)
         } catch (err) {
           if (err.code === 'ENOENT') {
@@ -156,16 +151,6 @@ export default class Server {
           throw err
         }
       },
-
-      // It's very important keep this route's param optional.
-      // (but it should support as many as params, seperated by '/')
-      // Othewise this will lead to a pretty simple DOS attack.
-      // See more: https://github.com/zeit/next.js/issues/2617
-      '/_next/:hash/:name*': async (req, res, params) => {
-        const name = params.name.join('/')
-        const p = join(this.dir, this.dist, 'bundles', name)
-        await this.serveStatic(req, res, p)
-      }
     }
 
     for (const method of ['GET', 'HEAD']) {
@@ -206,7 +191,7 @@ export default class Server {
   isServeableUrl (path) {
     const resolved = resolve(path)
     if (
-      resolved.indexOf(join(this.dir, this.dist) + sep) !== 0 &&
+      resolved.indexOf(join(this.dir, '.next') + sep) !== 0 &&
       resolved.indexOf(join(this.dir, 'static') + sep) !== 0
     ) {
       // Seems like the user is trying to traverse the filesystem.
@@ -217,9 +202,8 @@ export default class Server {
   }
 
   readBuildId () {
-    const buildIdPath = join(this.dir, this.dist, 'BUILD_ID')
-    const buildId = fs.readFileSync(buildIdPath, 'utf8')
-    return buildId.trim()
+    const buildIdPath = join(this.dir, '.next', 'BUILD_ID')
+    return fs.readFileSync(buildIdPath, 'utf8').trim()
   }
 
   async getCompilationError () {

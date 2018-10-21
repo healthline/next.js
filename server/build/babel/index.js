@@ -1,6 +1,7 @@
 import Cluster from 'cluster'
+import { resolve } from 'path';
 
-let callback
+let callbacks = [];
 let worker
 
 if (Cluster.isMaster) {
@@ -11,9 +12,9 @@ if (Cluster.isMaster) {
   })
   worker = Cluster.fork()
   worker.on('message', (msg) => {
+    const callback = callbacks[msg.callbackId]
     if (!callback) {
-      console.error('Message without callback', msg)
-      return
+      throw new Error(`Message without callback: ${JSON.stringify(msg, undefined, 2)}`);
     }
 
     if (msg.cmd === 'error') {
@@ -26,9 +27,7 @@ if (Cluster.isMaster) {
   })
   worker.on('error', (err) => {
     console.error('Babel worker errored', err)
-    if (callback) {
-      callback(err)
-    }
+    throw new Error('Worker error');
   })
   worker.on('exit', () => {
     console.error('Babel worker exited')
@@ -37,29 +36,45 @@ if (Cluster.isMaster) {
 
 export function build (filenames, options) {
   return new Promise((resolve, reject) => {
-    worker.send({cmd: 'build', filenames, options})
-    callback = (err, msg) => {
+    const callbackId = callbacks.length
+    callbacks.push((err, msg) => {
       if (err) {
         reject(err)
       } else if (msg.cmd === 'built') {
         Cluster.disconnect()
         resolve(msg)
       }
-    }
+    })
+
+    worker.send({callbackId, cmd: 'build', filenames, options})
   })
 }
 
 export function watch (filenames, options, fileCallback) {
   return new Promise((resolve, reject) => {
-    worker.send({cmd: 'watch', filenames, options})
-    callback = (err, msg) => {
+    const callbackId = callbacks.length
+    callbacks.push((err, msg) => {
       if (err) {
-        reject(err)
-      } else if (msg.cmd === 'built') {
+        return reject(err)
+      }
+
+      if (msg.cmd === 'file-built') {
+        deleteCache(msg.dest, options)
+        msg.parents.forEach((parent) => deleteCache(parent, options))
+      }
+
+      if (msg.cmd === 'built') {
         resolve(msg)
       } else if (fileCallback) {
         fileCallback(msg)
       }
-    }
+    })
+
+    worker.send({callbackId, cmd: 'watch', filenames, options})
   })
+}
+
+function deleteCache (path, options) {
+  delete require.cache[path]
+  delete require.cache[resolve(options.base, path)];
 }

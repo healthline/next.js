@@ -3,11 +3,10 @@ import 'core-js/es6/promise'
 
 import { createElement } from 'react'
 import ReactDOM from 'react-dom'
-import HeadManager from './head-manager'
 import { createRouter } from '../lib/router'
 import EventEmitter from '../lib/EventEmitter'
 import App from '../lib/app'
-import { loadGetInitialProps, getURL } from '../lib/utils'
+import { getURL } from '../lib/utils'
 import { loadPage } from '../lib/page-loader'
 
 const {
@@ -16,15 +15,12 @@ const {
     err,
     pathname,
     query,
-    buildId,
-    assetPrefix
+    publicPath
   },
   location
 } = window
 
-if (assetPrefix) {
-  __webpack_public_path__ = `${assetPrefix}/_next/${buildId}/`    // eslint-disable-line
-}
+__webpack_public_path__ = publicPath    // eslint-disable-line
 
 const asPath = getURL()
 
@@ -80,13 +76,13 @@ export async function render ({ Component, props, hash, err, emitter: emitterPro
     lastAppProps.Component === ErrorComponent) {
     // fetch props if ErrorComponent was replaced with a page component by HMR
       const { pathname, query, asPath } = router
-      props = await loadGetInitialProps(Component, { err, pathname, query, asPath })
+      props = await Component.getInitialProps({ err, pathname, query, asPath })
     }
 
     Component = Component || lastAppProps.Component
     props = props || lastAppProps.props
 
-    const appProps = { Component, props, hash, err, router, headManager }
+    const appProps = { Component, props, hash, err, router }
     // lastAppProps has to be set before ReactDom.render to account for ReactDom throwing an error.
     lastAppProps = appProps
 
@@ -117,19 +113,20 @@ export async function renderError (error) {
 
   console.error(error)
 
-  const initProps = { err: error, pathname, query, asPath }
-  const props = await loadGetInitialProps(ErrorComponent, initProps)
-  renderReactElement(createElement(ErrorComponent, props), errorContainer)
+  const props = await ErrorComponent.getInitialProps({ err: error, pathname, query, asPath })
+  const appProps = { Component: ErrorComponent, props, err, router }
+  renderReactElement(createElement(App, appProps), errorContainer)
 
   appContainer.innerHTML = ''
 }
 
 let isInitialRender = true
 function renderReactElement (reactEl, domEl) {
-  if (isInitialRender) {
+  if (isInitialRender && domEl.firstChild) {
     ReactDOM.hydrate(reactEl, domEl)
     isInitialRender = false
   } else {
     ReactDOM.render(reactEl, domEl)
+    isInitialRender = false
   }
 }

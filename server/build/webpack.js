@@ -2,15 +2,14 @@ import { resolve, join } from 'path'
 import webpack from 'webpack'
 import WriteFilePlugin from 'write-file-webpack-plugin'
 import glob from 'glob-promise'
-import FriendlyErrorsWebpackPlugin from 'friendly-errors-webpack-plugin'
-import CaseSensitivePathPlugin from 'case-sensitive-paths-webpack-plugin'
 import { StatsWriterPlugin } from 'webpack-stats-plugin'
 import getConfig from '../config'
 
-const nextPagesDir = join(__dirname, '../../../browser/pages')
 const nextNodeModulesDir = join(__dirname, '../../../node_modules')
 
-async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, quiet = false, buildDir, conf = null } = {}) {
+export default async function createCompiler (dir, { buildId = '-', dev = false, quiet = false, conf = null } = {}) {
+  const addedEntries = {}
+
   dir = resolve(dir)
   const config = getConfig(dir, conf)
   const defaultEntries = dev ? [
@@ -30,22 +29,17 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
     // In the dev environment, on-demand-entry-handler will take care of
     // managing pages.
     const loader = 'page-loader!'
-    const modeDefaultPages = ['_error.js']
-    const allPages = (await glob('./pages/**/*.js', { cwd: dir })).filter((p) => p !== 'pages/_document.js' && !/\.test\.js/.test(p))
+    const modeDefaultPages = []
+    const allPages = (await glob('./pages/**/*.js', { cwd: dir }))
+        .filter((p) => !p.endsWith('pages/_document.js') && !/\.test\.js/.test(p) && !/__tests__/.test(p))
     const entryPages = dev
       ? allPages
-        .filter((p) => modeDefaultPages.find((defaultPage) => p.endsWith(defaultPage)))
-        .concat(Object.values(dynamicEntries()))
+        .filter((p) => p.endsWith('_error.js'))
+        .concat(Object.values(addedEntries))
       : allPages
 
     for (const p of entryPages) {
       entries[p.replace(/^.*?\/pages\//, 'pages/').replace(/^(pages\/.*)\/index.js$/, '$1.js')] = base.concat(`${loader}${p}`)
-    }
-    for (const p of modeDefaultPages) {
-      const entryName = join('pages', p)
-      if (!entries[entryName]) {
-        entries[entryName] = `${loader}${join(nextPagesDir, p)}`
-      }
     }
 
     return entries
@@ -58,17 +52,12 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
       // required not to cache removed files
       useHashIndex: false
     }),
-    // new PagesPlugin(),
-    new CaseSensitivePathPlugin()
   ]
 
   if (dev) {
     plugins.push(
       new webpack.HotModuleReplacementPlugin()
     )
-    if (!quiet) {
-      plugins.push(new FriendlyErrorsWebpackPlugin())
-    }
   } else {
     plugins.push(new webpack.NormalModuleReplacementPlugin(
       /react-hot-loader/,
@@ -82,21 +71,17 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
   )
 
   const mainBabelOptions = {
-    cacheDirectory: true
+    cacheDirectory: true,
   }
 
   const rules = (dev ? [{
     test: /\.js(\?[^?]*)?$/,
     loader: 'hot-self-accept-loader',
     include: [
-      join(dir, 'pages'),
-      join(nextPagesDir)
+      join(dir, 'pages')
     ]
   }] : [])
     .concat([{
-      test: /\.json$/,
-      loader: 'json-loader'
-    }, {
       test: /\.js(\?[^?]*)?$/,
       loader: 'babel-loader',
       include: [dir],
@@ -106,8 +91,6 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
       options: mainBabelOptions
     }])
 
-  const path = join(buildDir ? join(buildDir, '.next') : join(dir, config.distDir), 'bundles')
-
   let webpackConfig = {
     name: 'client',
     mode: dev ? 'development' : 'production',
@@ -116,7 +99,7 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
     entry,
     output: {
       pathinfo: !!dev,
-      path,
+      path: join(dir, '.next', 'bundles'),
       filename: '[name]',
       publicPath: `/_next/${buildId}/`,
       strictModuleExceptionHandling: true,
@@ -171,17 +154,10 @@ async function createConfig (dir, dynamicEntries, { buildId = '-', dev = false, 
     console.log(`> Using "webpack" config function defined in ${config.configOrigin}.`)
     webpackConfig = await config.webpack(webpackConfig, { buildId, dev })
   }
-  return webpackConfig
-}
 
-export default async function createCompiler (dir, opts) {
-  const entries = {}
-  const compiler = webpack([
-    await createConfig(dir, () => entries, {isServer: true, ...opts}),
-    await createConfig(dir, () => entries, {isServer: false, ...opts})
-  ])
+  const compiler = webpack(webpackConfig)
   compiler.setEntry = (name, path) => {
-    entries[name] = path
+    addedEntries[name] = path
   }
   return compiler
 }

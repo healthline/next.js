@@ -4,7 +4,8 @@
 // MIT: https://github.com/babel/babel/blob/master/LICENSE
 //
 import FS from 'fs'
-import Path from 'path'
+import Crypto from 'crypto'
+import Path, { resolve } from 'path'
 import Chokidar from 'chokidar'
 import slash from 'slash'
 import babelLoader from 'babel-loader'
@@ -17,13 +18,17 @@ process.env.IS_SERVER = true
 let building = {}
 
 process.on('message', (message) => {
-  handleMessage(message, (msg) => process.send(msg))
+  handleMessage(message, (msg) => process.send({
+    callbackId: message.callbackId,
+    ...msg
+  }))
 })
 
 export async function handleMessage ({cmd, filenames, options}, response) {
   if (cmd === 'watch' || cmd === 'build') {
     let compiledFiles = 0
-    for (const filename of filenames) {
+    for (let filename of filenames) {
+      filename = resolve(options.base, filename);
       compiledFiles += await handle(filename, filename, filename, options, response, (filename, dest, base, rootFile) => {
         if (cmd === 'watch') {
           const watcher = Chokidar.watch(filename, {
@@ -65,12 +70,26 @@ async function handle (filenameOrDir, rootFile, requestor, options, response, on
 
   const ext = Path.extname(relative)
 
-  if ((ext && !['.js', '.jsx', '.json'].includes(ext)) || /__tests__|node_modules/.test(relative)) {
+  if ((ext && !['.js', '.jsx', '.json', '.woff'].includes(ext)) || /__tests__|node_modules/.test(relative)) {
     return 0
   }
 
   if (ext === '.json') {
     outputFileSync(Path.join(options.outDir, relative), FS.readFileSync(filenameOrDir))
+    return 1
+  }
+
+  if (ext === '.woff') {
+    const content = FS.readFileSync(filenameOrDir);
+
+    const hasher = Crypto.createHash('md5');
+    hasher.update(content);
+
+    const filename = `${hasher.digest('base64').slice(8).toLowerCase().replace(/=*$/, '')}${ext}`;
+    outputFileSync(Path.join(options.staticDir, filename), content)
+    outputFileSync(Path.join(options.outDir, relative), `
+      module.exports = __webpack_public_path__ + ${JSON.stringify(`_static/${filename}`)};`)
+
     return 1
   }
 
@@ -80,12 +99,19 @@ async function handle (filenameOrDir, rootFile, requestor, options, response, on
   const dest = Path.join(options.outDir, relative)
 
   if (building[dest]) {
-    building[dest].add(requestor)
-    building[requestor].forEach((a) => building[dest].add(a))
+    building[dest].responses.add(response);
+
+    building[dest].parents.add(requestor)
+    building[requestor].parents.forEach((a) => {
+      building[dest].parents.add(a);
+    })
     return 0
   }
-  building[dest] = building[filenameOrDir] = new Set(building[requestor])
-  building[dest].add(requestor)
+  building[dest] = building[filenameOrDir] = {
+    responses: new Set([response]),
+    parents: new Set(building[requestor] && building[requestor].parents)
+  };
+  building[dest].parents.add(requestor)
 
   const stat = FS.statSync(filenameOrDir)
 
@@ -119,7 +145,9 @@ async function write (filename, dest, base, rootFile, options, response, onBuilt
     const res = await compile(
       filename,
       {
-        sourceFileName: slash(Path.relative(dest + '/..', filename)),
+        sourceFileName: slash(relative),
+        sourceMaps: 'inline',
+        sourceRoot: Path.relative(Path.dirname(dest), options.base),
         ...options.babelOptions
       }
     )
@@ -127,12 +155,14 @@ async function write (filename, dest, base, rootFile, options, response, onBuilt
     if (!res) return 0
 
     const { modules } = res.metadata
+    const fsDeps = modules.imports.concat(
+      modules.exports.specifiers.filter(({kind}) => kind === 'external')
+    )
+      .map(({source}) => source)
+      .filter((source) => /^\./.test(source))
     const locals = (await Promise.all(
-      modules.imports.concat(
-        modules.exports.specifiers.filter(({kind}) => kind === 'external')
-      )
-        .filter(({source}) => /^\./.test(source))
-        .map(({source}) => {
+      fsDeps
+        .map((source) => {
           source = Path.resolve(`${relative}/..`, source)
           if (!Path.extname(source)) {
             try {
@@ -153,17 +183,20 @@ async function write (filename, dest, base, rootFile, options, response, onBuilt
 
     outputFileSync(dest, res.code)
 
-    response({
-      cmd: 'file-built',
-      filename,
-      dest,
-      locals,
-      parents: Object.keys(building)
+    building[filename].responses.forEach((response) => {
+      response({
+        cmd: 'file-built',
+        filename,
+        dest,
+        locals,
+        parents: Array.from(building[filename].parents)
+      })
     })
 
     return locals + 1
   } catch (err) {
     response({cmd: 'error', message: err.message, stack: err.stack})
+    return 0
   }
 }
 function compile (filename, babelOptions) {

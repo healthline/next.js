@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events'
 import { join } from 'path'
-import resolvePath from './resolve'
+import fs from 'fs'
 import { MATCH_ROUTE_NAME, IS_BUNDLED_PAGE, normalizePageEntryName } from './utils'
 
 const BUILDING = Symbol('building')
@@ -15,13 +15,14 @@ export default function onDemandEntryHandler (devMiddleware, webpackCompiler, ba
 }) {
   let entries = {}
   let doneCallbacks = new EventEmitter()
-  const invalidator = new Invalidator(devMiddleware, webpackCompiler.compilers)
+  const invalidator = new Invalidator(devMiddleware, webpackCompiler)
   let reloading = false
   let stopped = false
   let reloadCallbacks = new EventEmitter()
 
-  webpackCompiler.hooks.done.tap('onDemandEntryHandler', function (multiStats) {
-    const hardFailedPages = multiStats.stats.reduce((prev, {compilation}) => prev.concat(compilation.errors
+  webpackCompiler.hooks.done.tap('onDemandEntryHandler', function (stats) {
+    const { compilation } = stats
+    const hardFailedPages = compilation.errors
       .filter(e => {
         // Make sure to only pick errors which marked with missing modules
         const hasNoModuleFoundError = /ENOENT/.test(e.message) || /Module not found/.test(e.message)
@@ -39,7 +40,7 @@ export default function onDemandEntryHandler (devMiddleware, webpackCompiler, ba
       .map(c => {
         const pageName = MATCH_ROUTE_NAME.exec(c.name)[1]
         return normalizePage(`/${pageName}`)
-      })), [])
+      })
 
     // Call all the doneCallbacks
     Object.keys(entries).forEach((page) => {
@@ -85,12 +86,59 @@ export default function onDemandEntryHandler (devMiddleware, webpackCompiler, ba
       })
     },
 
+    async ensureAllPages() {
+      await this.waitUntilReloaded()
+
+      const wait = Promise.all(
+        fs.readdirSync(join(dir, 'pages'))
+          .filter((file) => /\.js$/.test(file) && !/^_/.test(file))
+          .map((file) => `/${file.replace(/\.js$/, '')}`)
+          .map(normalizePage)
+          .map((page) => {
+            const pagePath = join(dir, 'pages', page)
+            const pathname = require.resolve(pagePath)
+            const name = normalizePageEntryName(pathname, dir)
+
+            const entry = [`${pathname}?entry`]
+
+            return new Promise((resolve, reject) => {
+              const entryInfo = entries[page]
+              if (entryInfo) {
+                if (entryInfo.status === BUILT) {
+                  resolve()
+                  return
+                }
+
+                if (entryInfo.status === BUILDING) {
+                  doneCallbacks.on(page, processCallback)
+                  return
+                }
+              }
+
+              babelCompiler.setEntry(name, pathname)
+              entries[page] = { name, entry, pathname, status: ADDED }
+              doneCallbacks.on(page, processCallback)
+
+              function processCallback (err) {
+                if (err) return reject(err)
+                resolve()
+              }
+            })
+          })
+      )
+
+      console.log(`> Building all pages`)
+
+      invalidator.invalidate()
+      return wait
+    },
+
     async ensurePage (page) {
       await this.waitUntilReloaded()
       page = normalizePage(page)
 
       const pagePath = join(dir, 'pages', page)
-      const pathname = await resolvePath(pagePath)
+      const pathname = require.resolve(pagePath)
       const name = normalizePageEntryName(pathname, dir)
 
       const entry = [pathname]
@@ -161,17 +209,15 @@ function normalizePage (page) {
 // Make sure only one invalidation happens at a time
 // Otherwise, webpack hash gets changed and it'll force the client to reload.
 class Invalidator {
-  constructor (devMiddleware, compilers) {
+  constructor (devMiddleware, webpackCompiler) {
     this.devMiddleware = devMiddleware
-    this.compilers = compilers
+    this.webpackCompiler = webpackCompiler
     this.building = {}
     this.rebuildAgain = false
 
-    compilers.forEach((compiler) => {
-      compiler.hooks.make.tap('onDemandEntryHandler', () => {
-        console.log(`Rebuilding ${compiler.name}`)
-        this.startBuilding(compiler.name)
-      })
+    webpackCompiler.hooks.make.tap('onDemandEntryHandler', () => {
+      console.log(`Rebuilding ${compiler.name}`)
+      this.startBuilding(compiler.name)
     })
   }
 
@@ -188,9 +234,7 @@ class Invalidator {
     // Explicit invalidate does not trigger the invaidate hook,
     // which will cause multiple done callbacks to trigger from
     // the multi-compiler
-    this.compilers.forEach((compiler) => {
-      compiler.hooks.invalid.call()
-    })
+    this.webpackCompiler.hooks.invalid.call()
     this.devMiddleware.invalidate()
   }
 
