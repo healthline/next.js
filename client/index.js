@@ -24,7 +24,6 @@ __webpack_public_path__ = publicPath    // eslint-disable-line
 
 const asPath = getURL()
 
-const headManager = new HeadManager()
 const appContainer = document.getElementById('__next')
 const errorContainer = document.getElementById('__next-error')
 
