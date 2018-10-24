@@ -19,25 +19,22 @@ export default async function createCompiler (dir, { buildId = '-', dev = false,
     ? require.resolve('../../../browser/client/next-dev') : require.resolve('../../../browser/client/next')
 
   const entry = async () => {
-    const entries = {}
+    const loader = 'page-loader!'
     const base = [
       ...defaultEntries,
       ...config.clientBootstrap || [],
+      `${loader}./pages/_error.js`,
       mainJS
     ]
 
     // In the dev environment, on-demand-entry-handler will take care of
     // managing pages.
-    const loader = 'page-loader!'
-    const modeDefaultPages = []
-    const allPages = (await glob('./pages/**/*.js', { cwd: dir }))
-        .filter((p) => !p.endsWith('pages/_document.js') && !/\.test\.js/.test(p) && !/__tests__/.test(p))
     const entryPages = dev
-      ? allPages
-        .filter((p) => p.endsWith('_error.js'))
-        .concat(Object.values(addedEntries))
-      : allPages
+      ? Object.values(addedEntries)
+      : (await glob('./pages/**/*.js', { cwd: dir }))
+          .filter((p) => !p.includes('pages/_') && !/\.test\.js/.test(p) && !/__tests__/.test(p))
 
+    const entries = {}
     for (const p of entryPages) {
       entries[p.replace(/^.*?\/pages\//, 'pages/').replace(/^(pages\/.*)\/index.js$/, '$1.js')] = base.concat(`${loader}${p}`)
     }
@@ -112,9 +109,10 @@ export default async function createCompiler (dir, { buildId = '-', dev = false,
         'node_modules'
       ],
       alias: {
-        'html-entities': resolve('../../../browser/lib/html-entities'),
+        'next/page-loader': require.resolve('../../../browser/lib/page-loader'),
+        'html-entities': require.resolve('../../../browser/lib/html-entities'),
         'object-assign': 'core-js/fn/object/assign',
-        'strip-ansi': resolve('../../../browser/client/strip-ansi.stub')
+        'strip-ansi': require.resolve('../../../browser/client/strip-ansi.stub')
       }
     },
     resolveLoader: {
@@ -137,10 +135,11 @@ export default async function createCompiler (dir, { buildId = '-', dev = false,
         name: true,
         cacheGroups: {
           vendor: {
-            test: /[\\/]node_modules[\\/]/,
+            test: /[\\/]node_modules[\\/]|[\\/]next\.js[\\/]/,
             name: 'vendor',
             chunks: 'initial',
-            minChunks: 2
+            minChunks: 2,
+            priority: 100,
           }
         }
       },
