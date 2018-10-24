@@ -150,7 +150,7 @@ export default class Server {
 
           throw err
         }
-      },
+      }
     }
 
     for (const method of ['GET', 'HEAD']) {
