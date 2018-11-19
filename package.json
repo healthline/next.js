@@ -1,6 +1,6 @@
 {
   "name": "@kpdecker/next",
-  "version": "10.2.0",
+  "version": "10.3.5",
   "description": "Minimalistic framework for server-rendered React applications",
   "main": "./node/server/next.js",
   "license": "MIT",
@@ -12,11 +12,10 @@
     "browser",
     "babel.js",
     "link.js",
-    "css.js",
+    "build.js",
     "head.js",
     "document.js",
     "dynamic.js",
-    "prefetch.js",
     "router.js",
     "error.js"
   ],
@@ -109,10 +108,6 @@
     "standard": "12.0.1",
     "taskr": "1.1.0",
     "wd": "1.6.1"
-  },
-  "peerDependencies": {
-    "react": "^16.0.0",
-    "react-dom": "^16.0.0"
   },
   "jest": {
     "testEnvironment": "node",
