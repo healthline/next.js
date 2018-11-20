@@ -90,7 +90,6 @@
     "webpack": "4.21.0",
     "webpack-dev-middleware": "3.4.0",
     "webpack-hot-middleware": "2.24.3",
-    "webpack-stats-plugin": "0.2.1",
     "write-file-webpack-plugin": "4.4.1"
   },
   "devDependencies": {

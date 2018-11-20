@@ -2,7 +2,6 @@ import { resolve, join } from 'path'
 import webpack from 'webpack'
 import WriteFilePlugin from 'write-file-webpack-plugin'
 import glob from 'glob-promise'
-import { StatsWriterPlugin } from 'webpack-stats-plugin'
 import getConfig from '../config'
 
 const nextNodeModulesDir = join(__dirname, '../../../node_modules')
@@ -32,7 +31,7 @@ export default async function createCompiler (dir, { buildId = '-', dev = false,
     const entryPages = dev
       ? Object.values(addedEntries)
       : (await glob('./pages/**/*.js', { cwd: dir }))
-          .filter((p) => !p.includes('pages/_') && !/\.test\.js/.test(p) && !/__tests__/.test(p))
+        .filter((p) => !p.includes('pages/_') && !/\.test\.js/.test(p) && !/__tests__/.test(p))
 
     const entries = {}
     for (const p of entryPages) {
@@ -48,7 +47,7 @@ export default async function createCompiler (dir, { buildId = '-', dev = false,
       log: false,
       // required not to cache removed files
       useHashIndex: false
-    }),
+    })
   ]
 
   if (dev) {
@@ -61,14 +60,9 @@ export default async function createCompiler (dir, { buildId = '-', dev = false,
       require.resolve('../../../browser/client/hot-module-loader.stub')
     ))
   }
-  plugins.push(
-    new StatsWriterPlugin({
-      filename: 'webpack-stats.json'
-    })
-  )
 
   const mainBabelOptions = {
-    cacheDirectory: true,
+    cacheDirectory: true
   }
 
   const rules = (dev ? [{
@@ -138,8 +132,8 @@ export default async function createCompiler (dir, { buildId = '-', dev = false,
             test: /[\\/]node_modules[\\/]|[\\/]next\.js[\\/]/,
             name: 'vendor',
             chunks: 'initial',
-            minChunks: 2,
-            priority: 100,
+            minChunks: dev ? 1 : 2,
+            priority: 100
           }
         }
       },

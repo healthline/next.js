@@ -3,6 +3,16 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import PropTypes from 'prop-types'
 import htmlescape from 'htmlescape'
 
+function scriptsForEntry (pathname, entrypoints) {
+  const entry = entrypoints.get(`pages${pathname}.js`)
+
+  if (entry) {
+    return entry.chunks.reduce((prev, {files}) => prev.concat(files), [])
+  } else {
+    return ['vendor.js']
+  }
+}
+
 export default class Document extends Component {
   static getInitialProps ({ renderPage }) {
     const { html, head, errorHtml } = renderPage()
@@ -37,36 +47,37 @@ export class Head extends Component {
     let { publicPath } = this.context._documentProps.__NEXT_DATA__
 
     return (
-      `<link rel="preload" href="${publicPath}${filename}" as='script' >`
+      `<link rel=preload href="${publicPath}${filename}" as=script>`
     )
   }
 
   getPreloadMainLinks () {
+    const { __NEXT_DATA__, entrypoints } = this.context._documentProps
+    const { pathname } = __NEXT_DATA__
+
+    let scripts = scriptsForEntry(pathname, entrypoints)
+
     // In the production mode, we have a single asset with all the JS content.
-    return [
-      this.getChunkPreloadLink('vendor.js')
-    ]
+    return scripts.map((name) => this.getChunkPreloadLink(name)).join('')
   }
 
   render () {
-    const { head, styles, __NEXT_DATA__ } = this.context._documentProps
-    const { pathname, publicPath } = __NEXT_DATA__
-    const pagePathname = getPagePathname(pathname)
+    const { head, styles } = this.context._documentProps
+    const { children, ...rest } = this.props
 
-    const { children, ...rest} = this.props
+    const headMarkup = renderToStaticMarkup(
+      <Fragment>
+        {styles || null}
+        {children}
+      </Fragment>
+    )
 
     return <head {...rest} dangerouslySetInnerHTML={{
       __html: `
-<link rel="preload" href="${publicPath}pages${pagePathname}.js" as="script">
 ${this.getPreloadMainLinks()}
 ${head || ''}
-${renderToStaticMarkup(
-  <Fragment>
-    {styles || null}
-    {children}
-  </Fragment>
-)}
-    `}} />
+${headMarkup}
+    ` }} />
   }
 }
 
@@ -93,8 +104,7 @@ export class Main extends Component {
 
 export class NextScript extends Component {
   static propTypes = {
-    nonce: PropTypes.string,
-    commonChunks: PropTypes.array
+    nonce: PropTypes.string
   }
 
   static contextTypes = {
@@ -115,9 +125,14 @@ export class NextScript extends Component {
   }
 
   getScripts () {
+    const { __NEXT_DATA__, entrypoints } = this.context._documentProps
+    const { pathname } = __NEXT_DATA__
+
+    let scripts = scriptsForEntry(pathname, entrypoints)
+
     // In the production mode, we have a single asset with all the JS content.
     // So, we can load the script with async
-    return ['vendor.js'].concat(this.props.commonChunks || []).map(name => this.getChunkScript(name, { async: true }))
+    return scripts.map(name => this.getChunkScript(name, { async: true }))
   }
 
   render () {
