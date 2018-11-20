@@ -40,7 +40,7 @@ export default class HotReloader {
     const webpackCompiler = await webpack(this.dir, { dev: true, quiet: this.quiet })
     const babelCompiler = {
       setEntry: (name, pathname) => {
-        watch([pathname], {
+        return watch([pathname], {
           base: this.dir,
           outDir: join(this.dir, '.next', 'server'),
           staticDir: join(this.dir, '.next', 'static')
