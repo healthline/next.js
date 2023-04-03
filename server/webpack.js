@@ -57,6 +57,7 @@ export default async function createCompiler (dir, { buildId = '-', dev = false 
     dir,
     dev,
     configModule: require.resolve('./config'),
+    maxRetries: config.maxRetries,
     maxConcurrentWorkers: config.maxConcurrentWorkers
   })
 }
