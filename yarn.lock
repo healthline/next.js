@@ -820,10 +820,10 @@
     lodash "^4.17.11"
     to-fast-properties "^2.0.0"
 
-"@healthline/six-million@6.0.1":
-  version "6.0.1"
-  resolved "https://registry.yarnpkg.com/@healthline/six-million/-/six-million-6.0.1.tgz#00539d91a7ae5eeffe824b6f01a8a6f398c39588"
-  integrity sha512-GVbzDCaRREGji+hGasI6jQz/d+kBtFRkLNeYjDmYbYVZpDcWMD/w3YfjvfdSQPxYG8IZpvu3SMJs5e+TnUbkXA==
+"@healthline/six-million@7.0.0":
+  version "7.0.0"
+  resolved "https://npm.pkg.github.com/download/@healthline/six-million/7.0.0/cdb612000cb38ec64f1107bda84f715c6ea1efd7#cdb612000cb38ec64f1107bda84f715c6ea1efd7"
+  integrity sha512-px+PNpV0DrkPiSQ0h3FPiOzq1jF0g29Pq4ohobwzIvUlPK+5RXGr8GaTnD5q/lUIqD4QR1b8sAVxkc3i763t8w==
   dependencies:
     "@babel/core" "^7.4.3"
     "@babel/plugin-proposal-class-properties" "^7.4.0"
