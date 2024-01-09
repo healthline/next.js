@@ -1,6 +1,6 @@
 {
   "name": "@healthline/next",
-  "version": "25.0.1",
+  "version": "25.1.1",
   "description": "Minimalistic framework for server-rendered React applications",
   "main": "./node/server/next.js",
   "license": "MIT",
@@ -52,7 +52,7 @@
     "strip-ansi": "^6.0.0"
   },
   "devDependencies": {
-    "@healthline/six-million": "6.0.1",
+    "@healthline/six-million": "7.0.0",
     "babel-eslint": "10.0.3",
     "lint-staged": "8.2.1",
     "node-notifier": "6.0.0",
