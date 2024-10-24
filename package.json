@@ -52,7 +52,7 @@
     "strip-ansi": "^6.0.0"
   },
   "devDependencies": {
-    "@healthline/six-million": "^8.0.3",
+    "@healthline/six-million": "~8.1.0",
     "babel-eslint": "10.0.3",
     "lint-staged": "8.2.1",
     "node-notifier": "6.0.0",
