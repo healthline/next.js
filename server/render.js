@@ -1,10 +1,39 @@
 import { join } from 'path'
 import { createElement } from 'react'
 import { renderToString, renderToStaticMarkup } from 'react-dom/server'
+import { renderToReadableStream } from 'react-dom/server.browser'
 import stripAnsi from 'strip-ansi'
 import Head, { defaultHead } from '../lib/head'
 
 export const $HEAD = Symbol.for('head')
+
+  async function renderStreamAsPromise(app) {
+    return new Promise(async (resolve, reject) => {
+      
+      const stream = await renderToReadableStream(app);
+
+      await stream.allReady;
+
+      let content = '';
+      let done = false;
+
+      try {
+        const reader = stream.getReader();
+
+        while (!done) {
+          const { value, done: streamDone } = await reader.read();
+          done = streamDone;
+          if (value) {
+            content += new TextDecoder().decode(value);
+          }
+        }
+
+        resolve(content);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
 
 export async function doPageRender (req, res, pathname, query, initialProps, {
   dev,
@@ -48,7 +77,8 @@ export async function doPageRender (req, res, pathname, query, initialProps, {
     if (err) {
       errorHtml = renderToString(app)
     } else {
-      html = renderToString(app)
+      // todo: limit the scope of this
+      html = await renderStreamAsPromise(app)
     }
   } finally {
     head = props[$HEAD] || renderToString(Head.rewind() || defaultHead)
