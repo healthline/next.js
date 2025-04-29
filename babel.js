@@ -3,9 +3,9 @@ const createPreset = require('@healthline/six-million/babel').default
 const isJest = !!process.env.JEST_WORKER_ID
 const isServer = !!process.env.IS_SERVER || isJest
 exports.modernBrowsers = {
-  ios: '11.3',
-  chrome: '70',
-  firefox: '60'
+  ios: '12.5.5',
+  chrome: '87',
+  firefox: '78'
 }
 
 module.exports = (context, opts = {}) => {

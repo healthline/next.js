@@ -1,5 +1,5 @@
 export const modernBrowsers = {
-  ios: '11.3',
-  chrome: '70',
-  firefox: '60'
+  ios: '12.5.5',
+  chrome: '87',
+  firefox: '78'
 }
