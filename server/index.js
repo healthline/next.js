@@ -90,18 +90,6 @@ export default class Server {
       throw new Error(`No entry points defined for SITE ${process.env.SITE}`)
     }
     const current = entrypoints[process.env.SITE || 'default']
-    const legacy = entrypoints[`${process.env.SITE}-legacy`]
-
-    if (legacy) {
-      const ret = {}
-      Object.keys(current).forEach((path) => {
-        ret[path] = {
-          chunks: current[path].chunks.concat(legacy[path].chunks)
-        }
-      })
-      return ret
-    }
-
     return current
   }
 

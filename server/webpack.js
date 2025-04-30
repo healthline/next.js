@@ -6,25 +6,14 @@ export default async function createCompiler (dir, { buildId = '-', dev = false 
   dir = resolve(dir)
   const config = getConfig(dir)
   let sites = []
-  if (config.sites) {
-    config.sites.forEach(site => {
-      sites.push({
-        name: site,
-        buildId: `${buildId}/${site}`,
-        define: { 'process.env.SITE': JSON.stringify(site) }
-      })
-      if (!process.env.SKIP_LEGACY) {
-        sites.push({
-          name: `${site}-legacy`,
-          buildId: `${buildId}/${site}`,
-          isLegacy: true,
-          define: { 'process.env.SITE': JSON.stringify(site) }
-        })
-      }
+  config.sites.forEach(site => {
+    sites.push({
+      name: site,
+      buildId: `${buildId}/${site}`,
+      define: { 'process.env.SITE': JSON.stringify(site) }
     })
-  } else {
-    sites = [ { name: 'default', buildId }, { name: 'default', buildId, isLegacy: true } ]
-  }
+  })
+
   const mainJS = dev
     ? require.resolve('../../browser/client/next-dev') : require.resolve('../../browser/client/next')
 
