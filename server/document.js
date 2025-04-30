@@ -2,7 +2,6 @@ import React, { Component, Fragment } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import PropTypes from 'prop-types'
 import htmlescape from 'htmlescape'
-import { modernBrowsers } from './compile-targets'
 
 function scriptsForEntry (pathname, entrypoints) {
   const entry = entrypoints[`pages${pathname}.js`]
@@ -26,32 +25,16 @@ export default class Document extends Component {
     _documentProps: PropTypes.any
   };
 
-  constructor (props) {
-    super(props)
-
-    const { userAgent } = props
-    const browserChecks = {
-      ios:
-        /iPhone OS ([_0-9]+)/.exec(userAgent) &&
-        parseFloat(RegExp.$1.replace(/_/, '.')),
-      chrome: !/Edge\//.test(userAgent) && /Chrome\/([.0-9]*)/.exec(userAgent) && parseFloat(RegExp.$1)
-    }
-
-    this.serveModern =
-      browserChecks.ios >= modernBrowsers.ios ||
-      browserChecks.chrome >= modernBrowsers.chrome
-  }
-
   getChildContext () {
     return { _documentProps: this.props }
   }
 
   render () {
     return <html>
-      <Head serveModern={this.serveModern} />
+      <Head />
       <body>
         <Main />
-        <NextScript serveModern={this.serveModern} />
+        <NextScript />
       </body>
     </html>
   }
@@ -67,7 +50,7 @@ export class Head extends Component {
 
     // Give preference to modern bundle for preloading (since we can't do nomodule for
     // legacy vs. not and browsers will download both)
-    return !!module === !!this.props.serveModern
+    return module
       ? `<link rel=preload href="${publicPath}${file}" as=script crossorigin=anonymous>`
       : ''
   }
@@ -84,7 +67,7 @@ export class Head extends Component {
 
   render () {
     const { head, styles } = this.context._documentProps
-    const { children, serveModern, amp, ...rest } = this.props
+    const { children, amp, ...rest } = this.props
 
     const headMarkup = renderToStaticMarkup(
       <Fragment>
@@ -130,7 +113,6 @@ export class NextScript extends Component {
   }
 
   getScripts () {
-    const { serveModern } = this.props
     const { __NEXT_DATA__, entrypoints } = this.context._documentProps
     const { pathname } = __NEXT_DATA__
 
@@ -141,7 +123,7 @@ export class NextScript extends Component {
     return scripts.map(({ file, module }) => {
       let { publicPath } = this.context._documentProps.__NEXT_DATA__
 
-      if ((!module && serveModern) || (module && !serveModern)) {
+      if (!module) {
         return
       }
 
