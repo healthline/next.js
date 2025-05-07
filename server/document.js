@@ -146,7 +146,7 @@ export class NextScript extends Component {
     const scripts = this.getScripts()
     if (!scripts.length && pathname !== '/_error') {
       throw new Error(
-        `No scripts found for ${pathname}. Please check path and SKIP_LEGACY filter`
+        `No scripts found for ${pathname}. Please check path`
       )
     }
 
