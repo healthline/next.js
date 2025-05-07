@@ -93,7 +93,7 @@ export async function doDocRender (page, initialProps, { amp, dev, dir, publicPa
               .filter(name => !/\.map$/.test(name) && !/hot-update.js/.test(name))
               .map(file => ({
                 file,
-                module: !/-legacy\.js/.test(file)
+                module: true
               }))
           )
         }
