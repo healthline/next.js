@@ -941,10 +941,10 @@
     "@babel/helper-string-parser" "^7.27.1"
     "@babel/helper-validator-identifier" "^7.27.1"
 
-"@healthline/six-million@~8.2.0":
-  version "8.2.0"
-  resolved "https://registry.yarnpkg.com/@healthline/six-million/-/six-million-8.2.0.tgz#e9e019cc8a2274e57f23f4f7accc6273daee26d3"
-  integrity sha512-1tLqMMKt2ONNpWqIND4Wzxj1p+2D+f5V64o+qcj4xMk+6091PLp63Xrmmb5k75dzVqj7Kr+IpJkUe6d3OHf1rQ==
+"@healthline/six-million@~8.2.1":
+  version "8.2.1"
+  resolved "https://registry.yarnpkg.com/@healthline/six-million/-/six-million-8.2.1.tgz#f0795e6599bb1cb0a89c6208b3cfb48e85aa0f5c"
+  integrity sha512-MS20xDPqXDZ7XWSnFDCRWJCTCf7zfa2Ljnbf9NRQgecGrKiIXcjazRzGL0raG4+KiJf8ecpr/hp7ztKiSYgBYA==
   dependencies:
     "@babel/core" "^7.25.7"
     "@babel/helper-builder-react-jsx" "7.25.7"
