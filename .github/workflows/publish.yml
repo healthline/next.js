@@ -1,0 +1,59 @@
+name: Publish Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        type: boolean
+        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: publishing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Each workflow run checks out the exact tag that triggered it, even if approval is delayed
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      # To enable tmate debugging, click on the "Run workflow" button, and set the "debug_enabled" input to "true"
+      - name: SSH debugging (Enable by running manually via Actions tab)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+        uses: mxschmitt/action-tmate@v3
+
+      - name: Set up environment
+        uses: ./.github/actions/env-setup
+        with:
+          node_auth_token: ${{ secrets.NPM_TOKEN }}
+
+      - run: yarn build
+
+      - name: Set package version from tag
+        run: yarn version "${TAG#v}" --immediate
+        env:
+          TAG: ${{ github.ref_name }}
+
+      - name: Publish to npm
+        run: yarn npm publish --access restricted
+        env:
+          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create github release
+        run: |
+          gh release create "$TAG" \
+              --repo="$GITHUB_REPOSITORY" \
+              --title="${TAG#v}" \
+              --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
