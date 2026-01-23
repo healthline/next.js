@@ -1,0 +1,208 @@
+# Yarn 4 Upgrade with Corepack
+
+This guide helps upgrade a project from Yarn 1.x/3.x to Yarn 4 using corepack for version management.
+
+## Overview
+
+We're migrating from committing the Yarn binary to the repo to using corepack for Yarn version management. This is the recommended approach for Yarn 4+.
+
+## Key Changes
+
+### 1. package.json
+
+Add the `packageManager` field to specify the exact Yarn version:
+
+{
+  "packageManager": "yarn@4.12.0"
+}
+
+This tells corepack which version of Yarn to use.
+### 2. .yarnrc.yml
+
+Create or update `.yarnrc.yml` with appropriate settings:
+
+enableScripts: false
+
+nodeLinker: node-modules
+
+npmMinimalAgeGate: 1d
+
+# If using private npm scopes, configure them here
+# Note: npmAuthToken should NOT be in this file - it goes in ~/.yarnrc.yml
+npmScopes:
+  {
+    'your-org':
+      {
+        npmRegistryServer: 'https://registry.npmjs.org',
+      },
+  }
+
+# Add all @your-org packages from package.json to preapproved list
+# Check package.json for dependencies starting with @your-org/ and list them here
+npmPreapprovedPackages:
+  [
+    '@your-org/package-1',
+    '@your-org/package-2',
+  ]
+
+**Important**: Do NOT include `yarnPath` in `.yarnrc.yml` - corepack handles the binary.
+
+**Important**: Do NOT include `npmAuthToken` in the project `.yarnrc.yml` - developers should authenticate via `yarn npm login --scope your-org` which creates `~/.yarnrc.yml` with their personal token.
+
+**Important**: Check `package.json` for all `@your-org/*` packages in dependencies and devDependencies, then add them to `npmPreapprovedPackages` in `.yarnrc.yml`.
+
+### 3. .gitignore
+
+Update `.gitignore` based on Yarn's recommendations (https://yarnpkg.com/getting-started/qa#which-files-should-be-gitignored):
+ignore
+# https://yarnpkg.com/getting-started/qa#which-files-should-be-gitignored
+.yarn/*
+!.yarn/cache
+!.yarn/patches
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+
+**Note**: Do NOT include `!.yarn/releases` - we don't commit the Yarn binary since corepack manages it.
+### 4. Dockerfile
+
+Update Dockerfile to use corepack:
+
+# Copy package files
+COPY --chown=node:node package.json yarn.lock .yarnrc.yml ./
+
+# Switch to root to enable Corepack (requires root for system symlinks)
+USER root
+RUN corepack enable && corepack prepare yarn@4.12.0 --activate
+
+# Create home directory .yarnrc.yml with npmAuthToken for authentication
+# NPM_TOKEN is passed as ARG and will be used via ~/.yarnrc.yml
+RUN mkdir -p /home/node && \
+    echo "npmRegistries:" > /home/node/.yarnrc.yml && \
+    echo '  "https://registry.npmjs.org":' >> /home/node/.yarnrc.yml && \
+    echo "    npmAuthToken: \${NPM_TOKEN}" >> /home/node/.yarnrc.yml && \
+    chown node:node /home/node/.yarnrc.yml
+
+# Switch back to non-root user for package installation
+USER node
+
+# Install dependencies
+RUN yarn install --immutable
+# Or for production: RUN yarn workspaces focus --production
+
+### 5. GitHub Actions
+Create or update the setup action to use corepack:
+
+name: 'Set up Environment'
+description: 'Set up Node.js and dependencies'
+inputs:
+  node_auth_token:
+    description: 'NPM authentication token'
+    required: true
+    type: 'string'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: '.nvmrc'
+        registry-url: 'https://registry.npmjs.org'
+
+    - name: Enable Corepack and prepare Yarn
+      run: |
+        corepack enable
+        corepack prepare yarn@4.12.0 --activate
+      shell: bash
+
+    - name: Create home directory .yarnrc.yml with npmAuthToken
+      run: |
+        mkdir -p ~
+        cat > ~/.yarnrc.yml <<EOF
+        npmRegistries:
+          "https://registry.npmjs.org":
+            npmAuthToken: ${NPM_TOKEN}
+        EOF
+      shell: bash
+      env:
+        NPM_TOKEN: ${{ inputs.node_auth_token }}
+
+    - name: Cache node_modules
+      uses: actions/cache@v4
+      id: cache-node_modules
+      with:
+        path: node_modules
+        key: node_modules-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          node_modules-${{ runner.os }}-
+          node_modules-
+
+    - name: Install Packages
+      run: yarn install --immutable
+      shell: bash
+
+### 6. Fix Unbound Environment Variables
+Yarn 4 is stricter about environment variable substitution. If you have `${VAR}` in scripts or config and `VAR` is not set, it will fail.
+
+**Before (Yarn 1.x tolerant):**
+{
+  "scripts": {
+    "build": "NODE_OPTIONS=\"${NODE_OPTIONS} --max-old-space-size=4096\" next build"
+  }
+}
+
+**After (Yarn 4 safe):**
+{
+  "scripts": {
+    "build": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --max-old-space-size=4096\" next build"
+  }
+}The `:-` syntax provides a default empty value if the variable is unset.
+
+### 7. README Updates
+
+Update README with instructions for developers:
+
+### Install Yarn via Corepack
+
+corepack enable
+corepack prepare yarn@4.12.0 --activate
+
+### NPM Private Repo Access
+
+Login to npm with your scope:
+
+yarn npm login --scope your-org
+
+This creates `~/.yarnrc.yml` with your auth token.
+
+## Migration Checklist
+- [ ] Add `packageManager` field to `package.json`
+- [ ] Create/update `.yarnrc.yml` (remove `yarnPath` if present, remove `npmAuthToken`)
+- [ ] Update `.gitignore` (remove `!.yarn/releases` exception)
+- [ ] Delete `.yarn/releases/` directory if it exists
+- [ ] Update Dockerfile to use corepack
+- [ ] Update GitHub Actions to use corepack
+- [ ] Fix any scripts with unbound environment variables (use `${VAR:-}` syntax)
+- [ ] Update README with new setup instructions
+- [ ] Run `yarn install` to generate new `yarn.lock`
+- [ ] Test locally
+- [ ] Test CI/CD pipeline
+
+## Common Issues
+
+### "Package not found" errors
+- Ensure you're logged in: `yarn npm login --scope your-org`
+- Check `~/.yarnrc.yml` has the correct registry URL
+
+### Environment variable errors
+- Use `${VAR:-}` or `${VAR:-default}` for optional env vars
+- Yarn 4 doesn't tolerate unset variables in `${VAR}` syntax
+
+### SSL issues locally
+- Use environment variable: `NO_TLS=1 yarn dev`
+- Do NOT edit `.yarnrc.yml` with `enableStrictSsl: false` (this is a tracked file)
+
+### Corepack not found
+- Ensure Node.js 16.10+ is installed
+- Run `corepack enable` (may need sudo on some systems)

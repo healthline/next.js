@@ -1,6 +1,7 @@
 {
   "name": "@healthline/next",
   "version": "27.2.0",
+  "packageManager": "yarn@4.12.0",
   "description": "Minimalistic framework for server-rendered React applications",
   "main": "./node/server/next.js",
   "license": "MIT",

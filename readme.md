@@ -4,6 +4,27 @@ Minimialist version of Next.js. Not intended for external consumption.
 
 [Base Documentation](https://github.com/healthline/next.js/tree/fork-base#how-to-use)
 
+## Setup
+
+### Install Yarn via Corepack
+
+This project uses Yarn 4 managed via corepack. To set up:
+
+```bash
+corepack enable
+corepack prepare yarn@4.12.0 --activate
+```
+
+### NPM Private Repo Access
+
+If you need access to private `@healthline/*` packages, login to npm with your scope:
+
+```bash
+yarn npm login --scope healthline
+```
+
+This creates `~/.yarnrc.yml` with your auth token.
+
 ## How to Test Locally
 
 1. Build the package: `yarn build`
