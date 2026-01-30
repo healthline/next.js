@@ -1,0 +1,48 @@
+name: 'Set up Next.js Environment'
+description: 'Set up and configure Node.js and dependencies for next.js'
+inputs:
+  node_auth_token:
+    description: 'NPM authentication token'
+    required: true
+    type: 'string'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: '.nvmrc'
+        registry-url: 'https://registry.npmjs.org'
+
+    - name: Enable Corepack and prepare Yarn
+      run: |
+        corepack enable
+        corepack prepare yarn@4.12.0 --activate
+      shell: bash
+
+    - name: Create home directory .yarnrc.yml with npmAuthToken
+      run: |
+        mkdir -p ~
+        cat > ~/.yarnrc.yml <<EOF
+        npmRegistries:
+          "https://registry.npmjs.org":
+            npmAuthToken: ${NPM_TOKEN}
+        EOF
+      shell: bash
+      env:
+        NPM_TOKEN: ${{ inputs.node_auth_token }}
+
+    - name: Cache node_modules
+      uses: actions/cache@v4
+      id: cache-node_modules
+      with:
+        path: node_modules
+        key: node_modules-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          node_modules-${{ runner.os }}-
+          node_modules-
+
+    - name: Install Packages
+      run: yarn install --immutable
+      shell: bash

@@ -40,40 +40,31 @@ This creates `~/.yarnrc.yml` with your auth token.
 
 Note: you'll have to change it back to `node_modules` if you want to rebuild it
 
-## Publishing to [@healthline/next.js](https://www.npmjs.com/package/@healthline/next)
+## Publishing to [@healthline/next](https://www.npmjs.com/package/@healthline/next)
 
-### Steps to Publish
+### Steps to Publish:
 
-1. **Access Permissions**: Ensure you have the rights to publish to `@healthline/next.js` on npm.
+1. **Access Permissions**: Ensure you have the rights to publish to `@healthline/next` on npm and push tags to the repository.
 
-2. **Update Version** (using [Semantic Versioning](https://semver.org/)):
-
-   ```bash
-   npm version patch   # Bug fixes, minor changes
-   npm version minor   # New features, no breaking changes
-   npm version major   # Breaking changes
-   ```
-
-3. **Build the Project**:
+2. **Create Release Tag** (using [Semantic Versioning](https://semver.org/)):
 
    ```bash
-   yarn build
+   yarn release:tag
    ```
 
-   Ensure the build output is correct. Check `.npmignore` and `package.json` `files` configuration.
+   This script will:
+   - Prompt you to select a release type (Major, Minor, or Patch)
+   - Create a new version tag based on the last tag
+   - Push the tag to trigger the GitHub Actions publish workflow
 
-4. **Login to npm** (if not already logged in):
+3. **Verify the Release**:
 
-   ```bash
-   npm login
-   ```
+   - Check the [publish workflow](https://github.com/healthline/next.js/actions/workflows/publish.yml) to ensure it completed successfully
+   - Verify the [GitHub release](https://github.com/healthline/next.js/releases) was created
+   - Confirm the package was published on the [npm page](https://www.npmjs.com/package/@healthline/next?activeTab=versions)
 
-5. **Publish**:
-
-   ```bash
-   npm publish
-   ```
-
-6. **Verify** the package on the [npm page](https://www.npmjs.com/package/@healthline/next?activeTab=versions).
-
-7. **Commit & Push** Commit & Push Open a PR to merge version change into master
+The GitHub Actions workflow will automatically:
+- Build the project
+- Set the package version from the tag
+- Publish to npm
+- Create a GitHub release with auto-generated release notes
