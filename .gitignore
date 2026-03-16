@@ -19,6 +19,10 @@ test/**/out
 .DS_Store
 .vscode/settings.json
 
+# yalc (local package testing)
+.yalc
+yalc.lock
+
 # https://yarnpkg.com/getting-started/qa#which-files-should-be-gitignored
 .yarn/*
 !.yarn/cache

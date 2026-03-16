@@ -1,10 +1,19 @@
 /* global __NEXT_DATA__ */
 import { createElement, startTransition } from 'react'
+import ReactDOM from 'react-dom'
 import mitt from 'mitt'
 import { waitForPage } from '../lib/page-loader'
 import router, { createRouter } from './router'
 import { getURL } from '../lib/url'
-import { hydrateRoot } from 'react-dom/client'
+
+let hydrateRoot
+try {
+  hydrateRoot = require('react-dom/client').hydrateRoot
+} catch (e) {
+  // react-dom/client not available (React < 18)
+}
+
+const isReact18 = !!hydrateRoot
 
 const { props, err, pathname, query } = __NEXT_DATA__
 
@@ -123,14 +132,22 @@ export function renderError (error) {
 // If the root has not been defined yet, it will hydrate the element.
 // If the root has already been defined, it will use startTransition to update the tree.
 function renderReactElement (reactEl, domEl) {
-  // Wrap page in app-level enhancer, if defined
   reactEl = Enhancer ? createElement(Enhancer, null, reactEl) : reactEl
 
-  if (!reactRoot) {
-    reactRoot = hydrateRoot(domEl, reactEl)
+  if (isReact18) {
+    if (!reactRoot) {
+      reactRoot = hydrateRoot(domEl, reactEl)
+    } else {
+      startTransition(() => {
+        reactRoot.render(reactEl)
+      })
+    }
   } else {
-    startTransition(() => {
-      reactRoot.render(reactEl)
-    })
+    if (!reactRoot) {
+      ReactDOM.hydrate(reactEl, domEl)
+      reactRoot = true
+    } else {
+      ReactDOM.render(reactEl, domEl)
+    }
   }
 }

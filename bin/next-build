@@ -39,7 +39,15 @@ if (!existsSync(dir)) {
   process.exit(1)
 }
 
-del(join(dir, '.next'), { force: true })
+const nextDir = join(dir, '.next')
+del(
+  [
+    join(nextDir, '**'),
+    '!' + join(nextDir, 'cache'),
+    '!' + join(nextDir, 'cache', '**')
+  ],
+  { force: true }
+)
   .then(() => build(dir, argv.s, createWebpack))
   .catch((err) => {
     console.error(err)
