@@ -58,6 +58,9 @@ module.exports = {
       rootDir: __dirname,
       testEnvironment: 'jsdom',
       testMatch: ['<rootDir>/test/**/*.browser.test.js'],
+      // React 16 only warns on a hydration mismatch, so every browser test
+      // fails on that warning. The setup file says why it is project-wide.
+      setupFilesAfterEnv: ['<rootDir>/test/setup/fail-on-hydration-warning.js'],
       transform,
       moduleNameMapper: {
         // Re-point the aliases whose server and browser targets differ.

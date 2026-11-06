@@ -1,10 +1,10 @@
 /* global __NEXT_DATA__ */
-import { createElement, startTransition } from 'react'
+import { createElement } from 'react'
+import ReactDOM from 'react-dom'
 import mitt from 'mitt'
 import { waitForPage } from '../lib/page-loader'
 import router, { createRouter } from './router'
 import { getURL } from '../lib/url'
-import { hydrateRoot } from 'react-dom/client'
 
 const { props, err, pathname, query } = __NEXT_DATA__
 
@@ -28,7 +28,6 @@ const appContainer = document.getElementById('__next')
 
 let lastAppProps
 let ErrorComponent
-let reactRoot = null
 
 export const emitter = mitt()
 
@@ -118,6 +117,14 @@ export function render ({ Component, props, err }) {
 // 404 and 500 errors are special kind of errors
 // and they are still handle via the main render method.
 export function renderError (error) {
+  // We need to unmount the current app component because it's
+  // in the inconsistant state.
+  // Otherwise, we need to face issues when the issue is fixed and
+  // it's get notified via HMR
+  ReactDOM.unmountComponentAtNode(appContainer)
+
+  console.error(error)
+
   return ErrorComponent.getInitialProps({
     err: error,
     pathname,
@@ -131,18 +138,19 @@ export function renderError (error) {
   })
 }
 
-// This method is responsible for rending react elements in the DOM.
-// If the root has not been defined yet, it will hydrate the element.
-// If the root has already been defined, it will use startTransition to update the tree.
+// This method is responsible for rendering react elements in the DOM.
+// The first render adopts the server-rendered markup already in the container,
+// so the existing DOM nodes are reused rather than replaced. Every later
+// render, and any first render into an empty container, renders normally.
+let isInitialRender = true
 function renderReactElement (reactEl, domEl) {
   // Wrap page in app-level enhancer, if defined
   reactEl = Enhancer ? createElement(Enhancer, null, reactEl) : reactEl
 
-  if (!reactRoot) {
-    reactRoot = hydrateRoot(domEl, reactEl)
+  if (isInitialRender && domEl.firstChild) {
+    ReactDOM.hydrate(reactEl, domEl)
   } else {
-    startTransition(() => {
-      reactRoot.render(reactEl)
-    })
+    ReactDOM.render(reactEl, domEl)
   }
+  isInitialRender = false
 }
