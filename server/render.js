@@ -3,6 +3,8 @@ import { createElement } from 'react'
 import { renderToString, renderToStaticMarkup } from 'react-dom/server'
 import stripAnsi from 'strip-ansi'
 import Head, { defaultHead } from '../lib/head'
+import { isServableChunk } from './chunks'
+import { pageToolchain } from './document'
 
 export const $HEAD = Symbol.for('head')
 
@@ -66,13 +68,31 @@ export async function doPageRender (req, res, pathname, query, initialProps, {
   }
 }
 
-export async function doDocRender (page, initialProps, { amp, dev, dir, publicPath, entrypoints, hotReloader, buildId }) {
+export async function doDocRender (page, initialProps, { amp, dev, dir, publicPath, entrypoints, viteManifest, hotReloader, buildId }) {
   const pageDir = join(dir, '.next', 'server', 'pages')
 
   let Document = require(join(pageDir, amp ? '_amp' : '_document'))
   Document = Document.default || Document
 
   const docProps = await Document.getInitialProps({ initialProps, renderPage: () => page })
+  const pageEntrypoints =
+    entrypoints ||
+    hotReloader.multiStats.stats.reduce((prev, { compilation }) => {
+      for (let [entryName, entrypoint] of compilation.entrypoints.entries()) {
+        const path = prev[entryName] = prev[entryName] = prev[entryName] || { chunks: [] }
+        path.chunks.push(
+          ...entrypoint.chunks
+            .reduce((prev, { files }) => prev.concat(files), [])
+            // Shared with the document's own filter; see server/chunks.js.
+            .filter(isServableChunk)
+            .map(file => ({
+              file,
+              module: true
+            }))
+        )
+      }
+      return prev
+    }, {})
   const doc = createElement(Document, {
     __NEXT_DATA__: {
       buildId,
@@ -82,23 +102,11 @@ export async function doDocRender (page, initialProps, { amp, dev, dir, publicPa
       publicPath: docProps.publicPath || publicPath,
       err: docProps.err
     },
-    entrypoints:
-      entrypoints ||
-      hotReloader.multiStats.stats.reduce((prev, { compilation }) => {
-        for (let [entryName, entrypoint] of compilation.entrypoints.entries()) {
-          const path = prev[entryName] = prev[entryName] = prev[entryName] || { chunks: [] }
-          path.chunks.push(
-            ...entrypoint.chunks
-              .reduce((prev, { files }) => prev.concat(files), [])
-              .filter(name => !/\.map$/.test(name) && !/hot-update.js/.test(name))
-              .map(file => ({
-                file,
-                module: true
-              }))
-          )
-        }
-        return prev
-      }, {}),
+    entrypoints: pageEntrypoints,
+    viteManifest,
+    // Which build's output the page loads, 'vite' or 'webpack', for a
+    // consumer's document to report; the same decision picks the page's tags.
+    toolchain: pageToolchain(docProps.pathname, pageEntrypoints, viteManifest),
     dev,
     ...docProps
   })

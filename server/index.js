@@ -1,4 +1,4 @@
-import { resolve, join } from 'path'
+import { resolve, join, posix } from 'path'
 import fs from 'fs'
 
 import getConfig from './config'
@@ -22,7 +22,8 @@ export default class Server {
       hotReloader: this.hotReloader,
       publicPath: `${assetPrefix}/_next/`,
       buildId,
-      entrypoints: !dev ? this.readEntrypoints() : undefined
+      entrypoints: !dev ? this.readEntrypoints() : undefined,
+      viteManifest: !dev ? this.readViteManifest(buildId) : undefined
     }
   }
 
@@ -91,6 +92,39 @@ export default class Server {
     }
 
     return entrypoints[process.env.SITE || 'default']
+  }
+
+  // The site's Vite build output, when the site's build took any page through
+  // Vite. The build writes one file per site, beside this build's other
+  // outputs rather than under .next/bundles, which is uploaded:
+  //
+  //   .next/vite-manifests/<BUILD_ID>-<site>.json
+  //   { "outDir": "<the Vite build's build.outDir, relative to .next/bundles>",
+  //     "manifest": <the build's .vite/manifest.json, verbatim> }
+  //
+  // outDir is where the manifest's file names start, so a URL is publicPath,
+  // outDir, then the file. The build is the one place that says where its
+  // output lives. Because the name carries BUILD_ID, a file an earlier build
+  // left in .next is not read. No file means the site has no Vite pages.
+  readViteManifest (buildId) {
+    const site = process.env.SITE || 'default'
+    const path = join(this.dir, '.next', 'vite-manifests', `${buildId}-${site}.json`)
+    if (!fs.existsSync(path)) {
+      return undefined
+    }
+
+    const { outDir, manifest } = JSON.parse(fs.readFileSync(path, 'utf8'))
+    const outDirIsUnderBundles = typeof outDir === 'string' &&
+      !posix.isAbsolute(outDir) &&
+      !outDir.split('/').includes('..')
+    if (!outDirIsUnderBundles || typeof manifest !== 'object' || manifest === null) {
+      throw new Error(
+        `${path} must be { outDir, manifest }: outDir is the Vite build's ` +
+        'build.outDir relative to .next/bundles, manifest is its .vite/manifest.json'
+      )
+    }
+
+    return { outDir, manifest }
   }
 
   async getCompilationError () {

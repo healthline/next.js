@@ -2,6 +2,86 @@ import React, { Component, Fragment } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import PropTypes from 'prop-types'
 import htmlescape from 'htmlescape'
+import { posix } from 'path'
+import { isServableChunk } from './chunks'
+
+const VITE = 'vite'
+const WEBPACK = 'webpack'
+
+// A page's Vite entry is the entry chunk named after the page. The site's Vite
+// build names each page input the way webpack names the page's entry, minus
+// the extension (`pages/home-page` for `pages/home-page.js`), and Vite's
+// manifest records that input name as the chunk's `name`. Manifest keys are
+// source paths, which say nothing about the page.
+function viteEntryKey (pathname, viteManifest) {
+  if (!viteManifest) {
+    return undefined
+  }
+
+  const { manifest } = viteManifest
+  const name = `pages${pathname}`
+  return Object.keys(manifest).find((key) =>
+    manifest[key].isEntry && manifest[key].name === name
+  )
+}
+
+// Which build's output this page loads. When the site's Vite build produced
+// the page, Vite's, even though webpack still builds every page too: a
+// route loads exactly one chunk set. `null` is a page neither
+// build produced, such as a consumer's startup seed render.
+export function pageToolchain (pathname, entrypoints, viteManifest) {
+  if (viteEntryKey(pathname, viteManifest) !== undefined) {
+    return VITE
+  }
+  return entrypoints[`pages${pathname}.js`] ? WEBPACK : null
+}
+
+// The `importedChunks` function of Vite's backend-integration guide
+// (vitejs/vite v8.0.10, docs/guide/backend-integration.md), unchanged: the
+// chunks an entry imports statically, followed recursively, each once. It does
+// not follow `dynamicImports`; those chunks load when the page imports them.
+function importedChunks (manifest, name) {
+  const seen = new Set()
+
+  function getImportedChunks (chunk) {
+    const chunks = []
+    for (const file of chunk.imports || []) {
+      const importee = manifest[file]
+      if (seen.has(file)) {
+        continue
+      }
+      seen.add(file)
+
+      chunks.push(...getImportedChunks(importee))
+      chunks.push(importee)
+    }
+
+    return chunks
+  }
+
+  return getImportedChunks(manifest[name])
+}
+
+// A Vite page's files, as paths under publicPath, in the guide's order:
+// stylesheets of the entry and then of each imported chunk, the entry itself,
+// and the imported chunks to preload. The manifest's `file` names are relative
+// to the build's outDir, which the site's build records relative to
+// .next/bundles, the directory publicPath serves.
+function viteAssets (pathname, viteManifest) {
+  const { outDir, manifest } = viteManifest
+  const key = viteEntryKey(pathname, viteManifest)
+  const entry = manifest[key]
+  const imported = importedChunks(manifest, key)
+  const underOutDir = (file) => posix.join(outDir, file)
+
+  return {
+    stylesheets: [entry, ...imported]
+      .reduce((files, chunk) => files.concat(chunk.css || []), [])
+      .map(underOutDir),
+    entry: underOutDir(entry.file),
+    preloads: imported.map((chunk) => underOutDir(chunk.file))
+  }
+}
 
 function scriptsForEntry (pathname, entrypoints) {
   const entry = entrypoints[`pages${pathname}.js`]
@@ -9,7 +89,11 @@ function scriptsForEntry (pathname, entrypoints) {
   if (entry) {
     return entry.chunks
       .reduce((prev, { file, module }) => prev.concat({ file, module }), [])
-      .filter(({ name }) => !/hot-update/.test(name))
+      // `file`, not `name`: a manifest chunk is { file, module }, so the
+      // predicate this filter replaces tested undefined and matched nothing.
+      // The exclusion set is shared with server/render.js; server/chunks.js
+      // says what it excludes and why the document filters its own input.
+      .filter(({ file }) => isServableChunk(file))
   } else {
     return []
   }
@@ -56,8 +140,18 @@ export class Head extends Component {
   }
 
   getPreloadMainLinks () {
-    const { __NEXT_DATA__, entrypoints } = this.context._documentProps
-    const { pathname } = __NEXT_DATA__
+    const { __NEXT_DATA__, entrypoints, viteManifest } = this.context._documentProps
+    const { pathname, publicPath } = __NEXT_DATA__
+
+    // `crossorigin` as on the webpack tags, and as Vite's own HTML build
+    // writes it on stylesheet and modulepreload links.
+    if (pageToolchain(pathname, entrypoints, viteManifest) === VITE) {
+      const { stylesheets, preloads } = viteAssets(pathname, viteManifest)
+      return stylesheets
+        .map((file) => `<link rel="stylesheet" href="${publicPath}${file}" crossorigin="anonymous">`)
+        .concat(preloads.map((file) => `<link rel="modulepreload" href="${publicPath}${file}" crossorigin="anonymous">`))
+        .join('')
+    }
 
     let scripts = scriptsForEntry(pathname, entrypoints)
 
@@ -113,8 +207,24 @@ export class NextScript extends Component {
   }
 
   getScripts () {
-    const { __NEXT_DATA__, entrypoints } = this.context._documentProps
+    const { __NEXT_DATA__, entrypoints, viteManifest } = this.context._documentProps
     const { pathname } = __NEXT_DATA__
+
+    // One module script, the entry; the browser fetches what it imports. No
+    // `async`: Vite's own HTML build adds it only where the source HTML's
+    // script had it.
+    if (pageToolchain(pathname, entrypoints, viteManifest) === VITE) {
+      const { publicPath } = __NEXT_DATA__
+      const { entry } = viteAssets(pathname, viteManifest)
+      return [
+        <script
+          key={entry}
+          type='module'
+          src={`${publicPath}${entry}`}
+          crossOrigin='anonymous'
+        />
+      ]
+    }
 
     let scripts = scriptsForEntry(pathname, entrypoints)
 

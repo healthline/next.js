@@ -40,6 +40,25 @@ This creates `~/.yarnrc.yml` with your auth token.
 
 Note: you'll have to change it back to `node_modules` if you want to rebuild it
 
+## Serving pages built by Vite
+
+A site can build some or all of its pages with Vite instead of webpack. The server serves those pages from Vite's own manifest. Every other page renders from webpack's entrypoints, as before.
+
+The consumer's build writes one file per site:
+
+```
+.next/vite-manifests/<BUILD_ID>-<site>.json
+{ "outDir": "<Vite's build.outDir, relative to .next/bundles>",
+  "manifest": <Vite's .vite/manifest.json, unchanged> }
+```
+
+- **Which file is read.** In production the server reads the file for the current `BUILD_ID` and `SITE`. If there is no file, the site has no Vite pages and nothing changes. A malformed file throws at startup. An `outDir` that is absolute or contains `..` counts as malformed.
+- **Which pages it covers.** A page renders from Vite when the manifest has an entry chunk whose `name` is `pages/<route>`, such as `pages/home-page` for `pages/home-page.js`.
+- **What the page gets.** Such a page gets the tags Vite's backend-integration guide describes. Those are a stylesheet link for each CSS file of the entry and of its static imports, a `modulepreload` for each static import, and one `<script type="module">` for the entry. Every URL is `publicPath` + `outDir` + the manifest's file name.
+- **What the Document sees.** The Document receives a `toolchain` prop, `'vite'`, `'webpack'` or `null`, naming which build's output the page loads.
+
+The browser entry and the page loader run unchanged in a Vite bundle. Their two webpack-only names, `__webpack_public_path__` and `module.hot`, are read behind `typeof` checks. webpack folds those checks to constants, so a webpack build behaves as before.
+
 ## Publishing to [@healthline/next](https://www.npmjs.com/package/@healthline/next)
 
 ### Steps to Publish:
