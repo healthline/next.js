@@ -8,7 +8,19 @@ import { hydrateRoot } from 'react-dom/client'
 
 const { props, err, pathname, query } = __NEXT_DATA__
 
-__webpack_public_path__ = __NEXT_DATA__.publicPath; // eslint-disable-line
+// Tell webpack's runtime where to fetch chunks from. The document composes
+// every script and preload URL from __NEXT_DATA__.publicPath, so this only
+// teaches the runtime the prefix the document already used.
+//
+// The guard is what makes the entry bundler-neutral. webpack rewrites
+// `__webpack_public_path__` to its runtime's public-path slot and folds the
+// typeof to the constant "string", so the assignment still happens in a
+// webpack build. In a bundle with no webpack runtime the name is a plain
+// undeclared global, and assigning to one from an ES module -- always strict
+// -- throws a ReferenceError; the typeof check skips the assignment instead.
+if (typeof __webpack_public_path__ !== 'undefined') { // eslint-disable-line
+  __webpack_public_path__ = __NEXT_DATA__.publicPath; // eslint-disable-line
+}
 
 const asPath = getURL()
 
