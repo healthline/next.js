@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+# Only the newest run per ref matters; cancel the ones it supersedes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up environment
+        uses: ./.github/actions/env-setup
+        with:
+          node_auth_token: ${{ secrets.NPM_TOKEN }}
+
+      # The package build runs before lint and test because it is the step
+      # that catches a dependency removal the other two miss: removing
+      # node-notifier left lint and tests green and broke build-package.
+      - run: yarn build
+
+      # Yarn 4 does not run pre/post scripts, so lint needs its own step.
+      - run: yarn lint
+
+      - run: yarn test --ci
