@@ -44,6 +44,8 @@ Note: you'll have to change it back to `node_modules` if you want to rebuild it
 
 A site can build some or all of its pages with Vite instead of webpack. The server serves those pages from Vite's own manifest. Every other page renders from webpack's entrypoints, as before.
 
+This package supports React 16 (`^16.14.0`) only. React 18 support is planned as a later major release with a `hydrateRoot`/`createRoot` path. The Vite plugin that generates page entries and writes the manifest file still lives in frontend (`scripts/vite-plugins/healthline-next.js`); it moves into this package once the first site runs on Vite in production.
+
 The consumer's build writes one file per site:
 
 ```
