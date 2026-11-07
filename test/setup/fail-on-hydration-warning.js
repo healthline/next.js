@@ -16,11 +16,10 @@
 // Two limits a reader has to know before trusting a green run.
 //
 // First, React warns once per react-dom module registry, not once per mismatch:
-// every hydration warning below is gated on the module-level
-// `didWarnInvalidHydration` flag declared at node_modules/react-dom/cjs/
-// react-dom.development.js line 5622 and set by each warning site (lines 5701,
-// 5718, 5728, 6579, 6590, 6620). Nothing resets it. So the second mismatched
-// hydration inside one registry is silent, and a suite that asserts on more
+// every hydration warning below is gated on react-dom's module-level
+// `didWarnInvalidHydration` flag, which the first warning sets and nothing
+// resets. So the second mismatched hydration inside one registry is silent,
+// and a suite that asserts on more
 // than one must call `jest.resetModules()` between them to get a fresh
 // react-dom -- which is what test/client-hydration.browser.test.js does, and
 // why that call is load-bearing rather than tidiness.
@@ -37,7 +36,7 @@
 // already in the container. Each is matched against the format string React
 // passes as console.error's first argument; the placeholders are filled in for
 // the failure message. `did not match. Server:` covers both the text-content
-// difference (line 5703) and the prop difference (line 5720).
+// difference and the prop difference.
 const HYDRATION_WARNINGS = [
   'Expected server HTML to contain a matching',
   'Did not expect server HTML to contain',

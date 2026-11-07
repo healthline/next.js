@@ -12,9 +12,6 @@
 // scope. `module` is then a free identifier that resolves nowhere, which is
 // exactly the condition the guard exists for. Removing the guard makes this
 // suite throw a ReferenceError instead of registering the page.
-//
-// The CommonJS transform is resolved rather than declared: it arrives with
-// preset-env, which the preset this repository publishes already requires.
 
 const path = require('path')
 

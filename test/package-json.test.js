@@ -65,13 +65,11 @@ const CLEAN_SCRIPT = 'clean:build'
 // whole command, so that the `node` in `node -e` cannot supply the name
 // `node`.
 //
-// A reshaped or deleted script used to make this parse throw an opaque
-// TypeError at module load, which named neither the script nor the reason.
-// It now throws with both, because the likeliest cause is deliberate: the
-// planned move to Vite removes the webpack path and six-million together, and `build:package` is
-// six-million's entry point, so this script is expected to be rewritten. Its
-// replacement has to state the output directory set somewhere a reader can
-// find, and this derivation has to be pointed at wherever that is.
+// A reshaped or deleted script throws here with the script's name, because
+// the likeliest cause is deliberate: `build:package` is six-million's entry
+// point, so removing six-million rewrites this script. Its replacement has to
+// state the output directory set somewhere a reader can find, and this
+// derivation has to be pointed at wherever that is.
 const buildOutputDirectoriesFromCleanScript = () => {
   const script = scripts[CLEAN_SCRIPT]
 
@@ -140,12 +138,10 @@ const publishableDirectories = [
 describe('the build script', () => {
   it('cleans the output directories before compiling into them', () => {
     // `yarn build:package` is six-million's build entry point, named here as
-    // a literal because the order of the two halves is the claim. The planned
-    // move to Vite deletes six-million with the webpack path, and
-    // bin/next-build with it, so this step is replaced rather
-    // than kept. Removing it requires replacing this case with the same claim
-    // about whatever runs the build then: that the output is cleared before
-    // anything is compiled into it.
+    // a literal because the order of the two halves is the claim. If
+    // six-million goes, replace this case with the same claim about whatever
+    // runs the build then: that the output is cleared before anything is
+    // compiled into it.
     const steps = buildStepsFromBuildScript()
 
     const cleanStep = steps.findIndex((step) => step === `yarn ${CLEAN_SCRIPT}`)
@@ -193,13 +189,9 @@ describe('the published files list', () => {
 
   it('names the directory each bin target resolves out of', () => {
     // `bin` makes next-build an installed executable. If its directory is not
-    // published, the tarball installs a command that cannot be run.
-    //
-    // The plan is for @healthline/next to ship no development or build binary
-    // and for `next-build` to be deleted with the webpack path, so this case is scheduled to go red. Removing it
-    // requires the same change that empties `bin`: frontend running Vite's
-    // own CLI instead of this executable. Until then a non-empty `bin` is a
-    // published contract, which is why it is asserted rather than assumed.
+    // published, the tarball installs a command that cannot be run. A
+    // non-empty `bin` is a published contract, so it is asserted rather than
+    // assumed; the change that empties `bin` removes this case.
     expect(Object.keys(bin).length).toBeGreaterThan(0)
 
     for (const target of Object.values(bin)) {

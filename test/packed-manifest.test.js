@@ -6,12 +6,10 @@
 // renames the script to `_postinstall` in package.json, and `postpack` runs
 // `pinst --enable`, which renames it back.
 //
-// That wiring rots silently, and has. It sat on `prepublishOnly` and
-// `postpublish` -- hooks Yarn never runs -- until a later change moved it,
-// and the installer itself sat on `prepare`, which Yarn 4 does not support.
-// Nothing failed either time. test/package-json.test.js exists because the
-// `files` list rotted the same way; this file is its counterpart for
-// `scripts`.
+// That wiring rots silently. pinst's rename sat on `prepublishOnly` and
+// `postpublish`, which Yarn never runs; it now sits on `prepack` and
+// `postpack`. test/package-json.test.js is this file's counterpart for
+// `files`.
 //
 // So the claim here is made against a real tarball rather than against the
 // manifest: pack the package the way a publish would, read the manifest out
@@ -85,9 +83,7 @@ describe('the packed manifest', () => {
   it('runs no install script in a consumer, and keeps the disabled one', () => {
     const { scripts } = readPackedManifest()
 
-    // `prepare` is here as well as `postinstall` because it is the hook this
-    // installer used to sit on, and npm does run it for a dependency
-    // installed from a git URL.
+    // npm runs `prepare` for a git-URL install.
     expect(scripts.postinstall).toBeUndefined()
     expect(scripts.prepare).toBeUndefined()
 

@@ -81,10 +81,7 @@ function scriptsForEntry (pathname, entrypoints) {
   if (entry) {
     return entry.chunks
       .reduce((prev, { file, module }) => prev.concat({ file, module }), [])
-      // `file`, not `name`: a manifest chunk is { file, module }, so the
-      // predicate this filter replaces tested undefined and matched nothing.
-      // The exclusion set is shared with server/render.js; server/chunks.js
-      // says what it excludes and why the document filters its own input.
+      // A manifest chunk is { file, module }; see server/chunks.js.
       .filter(({ file }) => isServableChunk(file))
   } else {
     return []
@@ -252,15 +249,7 @@ export class NextScript extends Component {
       )
     }
 
-    // The only job of this inline script is to put __NEXT_DATA__ on the page
-    // before any bundle runs. It also used to assign a global `module = {}`,
-    // which nothing read: it existed only so that an unguarded `module.hot`
-    // lookup in the page loader would find an object instead of throwing.
-    // The page loader now guards that lookup with `typeof module !== 'undefined'`
-    // (lib/page-loader.js), so the shim is dead -- and worse than dead,
-    // because while it stayed, any new unguarded `module.*` read on the
-    // hydration path would work in the browser and fail only under an ESM
-    // bundle, which is the toolchain @healthline/next is moving to.
+    // Puts __NEXT_DATA__ on the page before any bundle runs.
     return <Fragment>
       <script nonce={this.props.nonce} dangerouslySetInnerHTML={{
         __html: `__NEXT_DATA__=${htmlescape(__NEXT_DATA__)}`

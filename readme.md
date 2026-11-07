@@ -44,7 +44,7 @@ Note: you'll have to change it back to `node_modules` if you want to rebuild it
 
 A site can build some or all of its pages with Vite instead of webpack. The server serves those pages from Vite's own manifest. Every other page renders from webpack's entrypoints, as before.
 
-This package supports React 16 (`^16.14.0`) only. React 18 support is planned as a later major release with a `hydrateRoot`/`createRoot` path. The Vite plugin that generates page entries and writes the manifest file still lives in frontend (`scripts/vite-plugins/healthline-next.js`); it moves into this package once the first site runs on Vite in production.
+This package supports React 16 (`^16.14.0`) only. Supporting React 18 needs a `hydrateRoot`/`createRoot` path and a new major release. The Vite plugin that generates page entries and writes the manifest file lives in frontend (`scripts/vite-plugins/healthline-next.js`), not in this package.
 
 The consumer's build writes one file per site:
 
@@ -54,8 +54,8 @@ The consumer's build writes one file per site:
   "manifest": <Vite's .vite/manifest.json, unchanged> }
 ```
 
-- **Which file is read.** In production the server reads the file for the current `BUILD_ID` and `SITE`. If there is no file, the site has no Vite pages and nothing changes. A malformed file throws at startup. An `outDir` that is absolute or contains `..` counts as malformed.
-- **Which pages it covers.** A page renders from Vite when the manifest has an entry chunk whose `name` is `pages/<route>`, such as `pages/home-page` for `pages/home-page.js`.
+- **Which file is read.** In production the server reads the file for the current `BUILD_ID` and `SITE`. If there is no file, the site has no Vite pages and nothing changes. The server refuses to start unless the file is JSON holding an object `manifest` and a string `outDir` that is relative and has no `..` segment. It does not check the chunks inside `manifest`.
+- **Which pages it covers.** A page renders from Vite when the manifest has an entry chunk whose `name` is `pages/<route>`, such as `pages/home-page` for `pages/home-page.js`. A page with no matching entry renders from webpack. The server does not warn when that happens; checking that every page sent to Vite has an entry is the consumer's build's job.
 - **What the page gets.** Such a page gets the tags Vite's backend-integration guide describes. Those are a stylesheet link for each CSS file of the entry and of its static imports, a `modulepreload` for each static import, and one `<script type="module">` for the entry. Every URL is `publicPath` + `outDir` + the manifest's file name.
 
 The browser entry and the page loader run unchanged in a Vite bundle. Their two webpack-only names, `__webpack_public_path__` and `module.hot`, are read behind `typeof` checks. webpack folds those checks to constants, so a webpack build behaves as before.
