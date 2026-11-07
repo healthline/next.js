@@ -209,43 +209,6 @@ const docRender = (dir, pathname, viteManifest) => {
   })
 }
 
-describe('the toolchain doDocRender tells the document', () => {
-  // A consumer's document reports it (frontend's RUM tag). The stub reports the
-  // prop verbatim. React is required by its resolved absolute path: the stub
-  // lives under os.tmpdir(), from where a bare 'react' does not resolve.
-  let dir
-
-  beforeAll(() => {
-    dir = buildDirWithDocument(`
-      const { createElement } = require(${JSON.stringify(require.resolve('react'))})
-      module.exports = function Document ({ toolchain }) {
-        return createElement('div', { 'data-toolchain': String(toolchain) })
-      }
-      module.exports.getInitialProps = async ({ renderPage }) => renderPage()
-    `)
-  })
-
-  const toolchainOf = async (pathname, viteManifest) => {
-    const markup = await docRender(dir, pathname, viteManifest)
-    return markup.match(/data-toolchain="([^"]*)"/)[1]
-  }
-
-  it("is vite for a page the site's Vite build produced", async () => {
-    await expect(toolchainOf('/home-page', VITE_MANIFEST)).resolves.toBe('vite')
-  })
-
-  it.each([
-    ['no Vite manifest', undefined],
-    ['a Vite manifest for its other pages', VITE_MANIFEST]
-  ])('is webpack for a page only webpack built, when the site has %s', async (_, viteManifest) => {
-    await expect(toolchainOf('/standard', viteManifest)).resolves.toBe('webpack')
-  })
-
-  it('is null for a page neither build produced', async () => {
-    await expect(toolchainOf('/seed-render', VITE_MANIFEST)).resolves.toBe('null')
-  })
-})
-
 describe("doDocRender, for a page the site's Vite build produced", () => {
   it("hands the document the site's Vite manifest, so the page loads its Vite entry", async () => {
     const dir = buildDirWithDocument(`

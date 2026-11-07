@@ -5,9 +5,6 @@ import htmlescape from 'htmlescape'
 import { posix } from 'path'
 import { isServableChunk } from './chunks'
 
-const VITE = 'vite'
-const WEBPACK = 'webpack'
-
 // A page's Vite entry is the entry chunk named after the page. The site's Vite
 // build names each page input the way webpack names the page's entry, minus
 // the extension (`pages/home-page` for `pages/home-page.js`), and Vite's
@@ -25,15 +22,10 @@ function viteEntryKey (pathname, viteManifest) {
   )
 }
 
-// Which build's output this page loads. When the site's Vite build produced
-// the page, Vite's, even though webpack still builds every page too: a
-// route loads exactly one chunk set. `null` is a page neither
-// build produced, such as a consumer's startup seed render.
-export function pageToolchain (pathname, entrypoints, viteManifest) {
-  if (viteEntryKey(pathname, viteManifest) !== undefined) {
-    return VITE
-  }
-  return entrypoints[`pages${pathname}.js`] ? WEBPACK : null
+// Whether the page loads the site's Vite build. Webpack still builds every
+// page too, but a route loads exactly one chunk set.
+function isVitePage (pathname, viteManifest) {
+  return viteEntryKey(pathname, viteManifest) !== undefined
 }
 
 // The `importedChunks` function of Vite's backend-integration guide
@@ -145,7 +137,7 @@ export class Head extends Component {
 
     // `crossorigin` as on the webpack tags, and as Vite's own HTML build
     // writes it on stylesheet and modulepreload links.
-    if (pageToolchain(pathname, entrypoints, viteManifest) === VITE) {
+    if (isVitePage(pathname, viteManifest)) {
       const { stylesheets, preloads } = viteAssets(pathname, viteManifest)
       return stylesheets
         .map((file) => `<link rel="stylesheet" href="${publicPath}${file}" crossorigin="anonymous">`)
@@ -213,7 +205,7 @@ export class NextScript extends Component {
     // One module script, the entry; the browser fetches what it imports. No
     // `async`: Vite's own HTML build adds it only where the source HTML's
     // script had it.
-    if (pageToolchain(pathname, entrypoints, viteManifest) === VITE) {
+    if (isVitePage(pathname, viteManifest)) {
       const { publicPath } = __NEXT_DATA__
       const { entry } = viteAssets(pathname, viteManifest)
       return [
