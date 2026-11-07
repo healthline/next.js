@@ -153,10 +153,18 @@ const builtTreesArePresent = outputDirectories.every((directory) =>
 
 // Skipped rather than failed when the built trees are absent: they are
 // gitignored build output, so a fresh clone has neither until `yarn build`
-// runs. That is the only skip. bin/ and babel.js are committed, so their
-// absence is a broken checkout and belongs in a failure, not a skip -- and
-// the sweep is all-or-nothing anyway, because a partial surface would let a
-// declaration look unbacked when its only requirer was in the missing part.
+// runs. That is the only skip, and never under CI, which builds before it
+// tests. bin/ and babel.js are committed, so their absence is a broken
+// checkout and belongs in a failure, not a skip -- and the sweep is
+// all-or-nothing anyway, because a partial surface would let a declaration
+// look unbacked when its only requirer was in the missing part.
+if (process.env.CI && !builtTreesArePresent) {
+  throw new Error(
+    `${path.basename(__filename)} needs ${outputDirectories.join(' and ')}, ` +
+      'and CI runs `yarn build` before the tests, so their absence is a failure here'
+  )
+}
+
 const describeSurface = builtTreesArePresent ? describe : describe.skip
 
 describeSurface(

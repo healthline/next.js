@@ -49,9 +49,18 @@ module.exports = {
       rootDir: __dirname,
       testEnvironment: 'node',
       testMatch: ['<rootDir>/test/**/*.test.js'],
-      testPathIgnorePatterns: ['\\.browser\\.test\\.js$'],
+      testPathIgnorePatterns: ['\\.browser\\.test\\.js$', '/test/packed-manifest\\.test\\.js$'],
       transform,
       moduleNameMapper: inRepoSources
+    },
+    {
+      // `yarn pack` rebuilds node/ and browser/ and rewrites package.json, so
+      // this runs alone, never beside the other projects.
+      displayName: 'pack',
+      rootDir: __dirname,
+      testEnvironment: 'node',
+      testMatch: ['<rootDir>/test/packed-manifest.test.js'],
+      transform
     },
     {
       displayName: 'browser',

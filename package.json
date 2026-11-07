@@ -23,7 +23,7 @@
     "build:package": "NODE_OPTIONS=--openssl-legacy-provider node -e 'require(`@healthline/six-million/build-package`)'",
     "release:tag": "./release.sh",
     "postinstall": "husky",
-    "test": "jest",
+    "test": "jest --selectProjects node browser",
     "lint": "standard 'bin/*' 'client/**/*.js' 'examples/**/*.js' 'jest.config.js' 'lib/**/*.js' 'server/**/*.js' 'test/**/*.js'",
     "prepack": "yarn build && pinst --disable",
     "postpack": "pinst --enable"
