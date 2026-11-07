@@ -3,8 +3,7 @@ const createPreset = require('@healthline/six-million/babel').default
 const isJest = !!process.env.JEST_WORKER_ID
 const isServer = !!process.env.IS_SERVER || isJest
 
-// six-million's preset hardcodes preset-env's `debug: true`
-// (node_modules/@healthline/six-million/node/babel/preset.js:33), so every file
+// six-million's preset hardcodes preset-env's `debug: true`, so every file
 // Babel compiles prints a targets and plugin dump. A Babel preset is a plain
 // config object, so this package turns the flag off on the entry it already wraps
 // rather than adding a Babel config file of its own.
@@ -20,21 +19,7 @@ module.exports = (context, opts = {}) => {
     ...opts
   }
   const preset = createPreset(context, opts)
-  // `|| []`: the shape read here is six-million's, not this package's. A version
-  // that returns no presets must leave this preset loading rather than
-  // throwing "Cannot read properties of undefined (reading 'map')" for every
-  // consumer -- this package's Jest, frontend Jest, Storybook, frontend's babel-loader
-  // rules. The dump coming back is the regression worth a test
-  // (test/babel-preset.test.js); a crash is not a way to report it.
-  preset.presets = withoutPresetEnvDebug(preset.presets || [])
-  // `|| []` for the same reason as the line above, against the same
-  // six-million-owned shape: `plugins` is part of the config six-million
-  // returns, not something this package creates. A version that returns no
-  // plugins key must not turn the alias table below into "Cannot read
-  // properties of undefined (reading 'push')" for every consumer. Those
-  // aliases are what make `next/*` resolve at all, so they have to land
-  // whether or not six-million contributed a plugin of its own.
-  preset.plugins = preset.plugins || []
+  preset.presets = withoutPresetEnvDebug(preset.presets)
   preset.plugins.push(
     [
       require.resolve('babel-plugin-module-resolver'),
