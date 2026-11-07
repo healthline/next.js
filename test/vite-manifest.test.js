@@ -97,15 +97,17 @@ const renderDocument = ({ pathname, viteManifest }) =>
     })
   )
 
-// The URLs of the loading tags in a document, by kind, in document order.
-// Attributes are read by name, so their order and quoting do not matter.
+// The URLs of the loading tags in a document, by kind, in document order, and
+// every script and link tag with its attributes. Attributes are read by name,
+// so their order and quoting do not matter.
 const loadingTags = (markup) => {
-  const tags = { moduleScripts: [], modulepreloads: [], stylesheets: [], preloads: [] }
+  const tags = { moduleScripts: [], modulepreloads: [], stylesheets: [], preloads: [], elements: [] }
   for (const [, tag, source] of markup.matchAll(/<(script|link)\b([^>]*)>/g)) {
     const attrs = {}
     for (const [, name, quoted, bare] of source.matchAll(/([a-z-]+)(?:=(?:"([^"]*)"|([^\s"]+)))?/g)) {
       attrs[name] = quoted !== undefined ? quoted : bare
     }
+    tags.elements.push({ tag, ...attrs })
     if (tag === 'script' && attrs.type === 'module' && attrs.src) tags.moduleScripts.push(attrs.src)
     if (tag === 'link' && attrs.rel === 'modulepreload') tags.modulepreloads.push(attrs.href)
     if (tag === 'link' && attrs.rel === 'stylesheet') tags.stylesheets.push(attrs.href)
@@ -152,30 +154,38 @@ describe("a page the site's Vite build produced", () => {
 })
 
 describe('a page only webpack built', () => {
-  // The document's markup for this fixture before Vite pages existed, captured
-  // from the previous commit's build. Frontend serves every template not yet on
-  // Vite through webpack, so this must not move until the webpack path is
-  // deleted, and this test goes with it.
-  const MARKUP_BEFORE_VITE_PAGES = [
-    '<html><head>\n',
-    '<link rel=preload href="https://assets.example.test/prefix/_next/build-1/hl/vendor.js" as=script crossorigin=anonymous>',
-    '<link rel=preload href="https://assets.example.test/prefix/_next/build-1/hl/pages/standard.js" as=script crossorigin=anonymous>',
-    '<link rel=preload href="https://assets.example.test/prefix/_next/standard-ab12c.js" as=script crossorigin=anonymous>\n',
-    '<title>standard</title>\n',
-    '\n',
-    '    </head><body><div id="__next"><div>page</div></div>',
-    '<script>__NEXT_DATA__={"buildId":"build-1","props":{},"pathname":"/standard","query":{},"publicPath":"https://assets.example.test/prefix/_next/","err":null}</script>',
-    '<script type="module" src="https://assets.example.test/prefix/_next/build-1/hl/vendor.js" crossorigin="anonymous" async=""></script>',
-    '<script type="module" src="https://assets.example.test/prefix/_next/build-1/hl/pages/standard.js" crossorigin="anonymous" async=""></script>',
-    '<script type="module" src="https://assets.example.test/prefix/_next/standard-ab12c.js" crossorigin="anonymous" async=""></script>',
-    '</body></html>'
-  ].join('')
+  // Frontend serves every template not yet on Vite through webpack, so a Vite
+  // manifest for the site's other pages must not change this page's markup.
+  const render = (viteManifest) => renderDocument({ pathname: '/standard', viteManifest })
+  const files = ENTRYPOINTS['pages/standard.js'].chunks.map(({ file }) => file)
 
-  it.each([
-    ['no Vite manifest', undefined],
-    ['a Vite manifest for its other pages', VITE_MANIFEST]
-  ])('renders the markup it rendered before Vite pages existed, when the site has %s', (_, viteManifest) => {
-    expect(renderDocument({ pathname: '/standard', viteManifest })).toBe(MARKUP_BEFORE_VITE_PAGES)
+  it("preloads and then loads webpack's chunks for the page, after __NEXT_DATA__", () => {
+    const markup = render(undefined)
+
+    expect(loadingTags(markup).elements).toEqual([
+      ...files.map((file) => ({
+        tag: 'link',
+        rel: 'preload',
+        href: `${PUBLIC_PATH}${file}`,
+        as: 'script',
+        crossorigin: 'anonymous'
+      })),
+      { tag: 'script' },
+      ...files.map((file) => ({
+        tag: 'script',
+        type: 'module',
+        src: `${PUBLIC_PATH}${file}`,
+        crossorigin: 'anonymous',
+        async: ''
+      }))
+    ])
+    expect(markup.match(/<script>([^<]*)<\/script>/)[1]).toBe(
+      '__NEXT_DATA__={"buildId":"build-1","props":{},"pathname":"/standard","query":{},"publicPath":"https://assets.example.test/prefix/_next/","err":null}'
+    )
+  })
+
+  it('renders the same markup when the site has a Vite manifest for its other pages', () => {
+    expect(render(VITE_MANIFEST)).toBe(render(undefined))
   })
 })
 

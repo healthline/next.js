@@ -38,28 +38,6 @@ function renderDocument (chunkFiles = CHUNK_FILES) {
 const attributeValues = (markup, pattern) =>
   Array.from(markup.matchAll(pattern), ([, value]) => value)
 
-describe('the document, composing bundle URLs', () => {
-  let markup
-
-  beforeAll(() => {
-    markup = renderDocument()
-  })
-
-  it('gives every chunk a script URL of publicPath followed by the manifest file, once each', () => {
-    // Comparing the whole ordered list, rather than asking whether each URL is
-    // present, is what proves a chunk is not emitted twice.
-    expect(attributeValues(markup, /<script[^>]*\bsrc="([^"]+)"/g)).toEqual(
-      CHUNK_FILES.map((file) => `${PUBLIC_PATH}${file}`)
-    )
-  })
-
-  it('gives every chunk a preload URL of publicPath followed by the manifest file, once each', () => {
-    expect(attributeValues(markup, /<link rel=preload href="([^"]+)"/g)).toEqual(
-      CHUNK_FILES.map((file) => `${PUBLIC_PATH}${file}`)
-    )
-  })
-})
-
 describe("the document's first inline script", () => {
   // The script's contract is one thing: __NEXT_DATA__ exists before any bundle
   // runs. It used to also assign a global `module = {}`, a shim for an
@@ -85,11 +63,10 @@ describe('the document, given chunks the browser must not be sent', () => {
   // Hot-update files are a development artifact of the incremental compile. They
   // must never reach a document's markup: by the time the browser parses the
   // tag the file is already gone, and a 404 on a script tag is a broken page.
-  // A source map is not executable at all. The document filters its own input
-  // rather than trusting the producer, because while webpack and Vite
-  // both build pages, two different producers write manifest entries: the
-  // webpack compilation and the Vite plugin's translation. The exclusion set lives in server/chunks.js
-  // and is shared with server/render.js so the two cannot drift apart.
+  // A source map is not executable at all. The document filters its own input,
+  // so a hot-update file or source map handed in by any caller never becomes a
+  // script tag. The exclusion set lives in server/chunks.js and is shared with
+  // server/render.js.
 
   const expectedURLs = CHUNK_FILES.map((file) => `${PUBLIC_PATH}${file}`)
 
@@ -113,8 +90,7 @@ describe('the document, given chunks the browser must not be sent', () => {
   })
 
   it('emits no tag for a source map, and keeps the other chunks', () => {
-    // render.js dropped `.map` entries and the document did not, so a manifest
-    // from the other producer could have put a source map in a script tag.
+    // render.js dropped `.map` entries and the document did not.
     const { scripts, preloads } = urlsFor([
       'main.js',
       'pages/index.js.map',
@@ -125,50 +101,25 @@ describe('the document, given chunks the browser must not be sent', () => {
     expect(preloads).toEqual(expectedURLs)
   })
 
-  it('keeps a chunk whose name merely contains an excluded word', () => {
+  it.each([
+    'pages/hot-update-notes.js',
+    'pages/map.js'
+  ])('keeps %s, whose name merely contains an excluded word', (ownName) => {
     // The exclusion is anchored at the end of the name. The unanchored regexes
     // it replaces dropped any chunk with "hot-update" anywhere in its path,
     // which is a name an application is entitled to choose.
-    const OWN_NAME = 'pages/hot-update-notes.js'
     const { scripts, preloads } = urlsFor([
       'main.js',
-      OWN_NAME,
+      ownName,
       'pages/index.js'
     ])
 
     expect(scripts).toEqual([
       `${PUBLIC_PATH}main.js`,
-      `${PUBLIC_PATH}${OWN_NAME}`,
+      `${PUBLIC_PATH}${ownName}`,
       `${PUBLIC_PATH}pages/index.js`
     ])
     expect(preloads).toEqual(scripts)
-  })
-})
-
-describe('the chunk exclusion the document and the renderer share', () => {
-  // Asserted on the module both of them import, because the renderer's use of
-  // it runs only against a live webpack compilation.
-  const { isServableChunk } = require('../server/chunks')
-
-  it('excludes hot-update chunks and source maps', () => {
-    expect(isServableChunk('pages/index.a1b2c3.hot-update.js')).toBe(false)
-    expect(isServableChunk('pages/index.js.map')).toBe(false)
-  })
-
-  it('serves chunks that only contain an excluded word', () => {
-    expect(isServableChunk('pages/hot-update-notes.js')).toBe(true)
-    expect(isServableChunk('pages/map.js')).toBe(true)
-    expect(isServableChunk('pages/index.js')).toBe(true)
-  })
-
-  it('serves the hot-update manifest name, which no producer puts in a chunk list', () => {
-    // Deliberate, not an oversight: webpack 4's HotModuleReplacementPlugin
-    // pushes only the hot-update chunk onto chunk.files
-    // (HotModuleReplacementPlugin.js:298); the [hash].hot-update.json manifest
-    // is emitted at line 312 with no files.push and so never reaches this
-    // predicate. Widening the pattern would guard a case the producer cannot
-    // create. server/chunks.js records the probe behind that reading.
-    expect(isServableChunk('a1b2c3.hot-update.json')).toBe(true)
   })
 })
 

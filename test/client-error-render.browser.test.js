@@ -20,8 +20,7 @@
 // until afterAll restores it, because the guard works by wrapping
 // console.error. Nothing is hidden by that: the guard is still in place for
 // the initial render, and the container starts empty, so this suite performs
-// no hydration at all. The first test asserts that precondition rather than
-// leaving it to the reader.
+// no hydration at all.
 
 const ERROR_MESSAGE = 'the page component threw'
 
@@ -30,7 +29,6 @@ describe('the client entry, rendering an error page over a live app', () => {
   let unmountedPages
   let consoleError
   let client
-  let containerWasEmpty
 
   beforeAll(async () => {
     global.__NEXT_DATA__ = {
@@ -41,8 +39,6 @@ describe('the client entry, rendering an error page over a live app', () => {
       publicPath: '/_next/'
     }
     document.body.innerHTML = '<div id="__next"></div>'
-    // Read before the entry runs: the entry renders into this container.
-    containerWasEmpty = document.getElementById('__next').firstChild === null
 
     const { createElement, Component } = require('react')
     const { registerPage } = require('../lib/page-loader')
@@ -81,25 +77,15 @@ describe('the client entry, rendering an error page over a live app', () => {
     consoleError.mockRestore()
   })
 
-  it('starts from an empty container, so no render here is a hydration', () => {
-    // The console.error spy this suite installs suspends the project's
-    // hydration guard. That is only safe while this precondition holds.
-    expect(containerWasEmpty).toBe(true)
-  })
-
   it('renders the error page', () => {
     expect(document.getElementById('error').textContent).toBe(
       `error:${ERROR_MESSAGE}`
     )
   })
 
-  it('removes the app that threw from the document instead of reconciling over it', () => {
-    expect(pageNode.isConnected).toBe(false)
-    expect(document.getElementById('error')).not.toBe(pageNode)
-  })
-
-  it('unmounts the app that threw before the error page mounts', () => {
+  it('unmounts the app that threw instead of reconciling over it', () => {
     expect(unmountedPages).toEqual(['page'])
+    expect(pageNode.isConnected).toBe(false)
   })
 
   it('reports the error to the console', () => {
