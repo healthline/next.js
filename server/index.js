@@ -124,6 +124,7 @@ export default class Server {
       )
     }
 
+    validateViteChunks(path, manifest)
     return { outDir, manifest }
   }
 
@@ -135,5 +136,38 @@ export default class Server {
 
     // Return the very first error we found.
     return Array.from(errors.values())[0][0]
+  }
+}
+
+// The keys of a chunk the document dereferences: `file`, `css`, and `imports`,
+// each of which names another chunk the document follows. A chunk that breaks
+// this would crash a page's render, so the server refuses it at startup.
+function validateViteChunks (path, manifest) {
+  const fail = (key, problem) => {
+    throw new Error(`${path}: manifest chunk ${JSON.stringify(key)} ${problem}`)
+  }
+  const isStringArray = (value) =>
+    Array.isArray(value) && value.every((item) => typeof item === 'string')
+
+  for (const [key, chunk] of Object.entries(manifest)) {
+    if (typeof chunk !== 'object' || chunk === null) {
+      fail(key, 'is not an object')
+    }
+    if (typeof chunk.file !== 'string') {
+      fail(key, 'has no string `file`')
+    }
+    if (chunk.css !== undefined && !isStringArray(chunk.css)) {
+      fail(key, 'has a `css` that is not an array of strings')
+    }
+    if (chunk.imports !== undefined) {
+      if (!isStringArray(chunk.imports)) {
+        fail(key, 'has an `imports` that is not an array of strings')
+      }
+      for (const imported of chunk.imports) {
+        if (!Object.prototype.hasOwnProperty.call(manifest, imported)) {
+          fail(key, `imports ${JSON.stringify(imported)}, which is not a key in the manifest`)
+        }
+      }
+    }
   }
 }

@@ -303,9 +303,37 @@ describe("the site's Vite manifest, as the server loads it at startup", () => {
     ['an absolute outDir', JSON.stringify({ ...VITE_MANIFEST, outDir: '/srv/app/.next/bundles/build-1/hl/vite' }), /must be \{ outDir, manifest \}/],
     ['an outDir that climbs out of .next/bundles', JSON.stringify({ ...VITE_MANIFEST, outDir: '../server' }), /must be \{ outDir, manifest \}/],
     ['an outDir with no manifest', JSON.stringify({ outDir: OUT_DIR }), /must be \{ outDir, manifest \}/],
+    ['a manifest with no outDir', JSON.stringify({ manifest: VITE_MANIFEST.manifest }), /must be \{ outDir, manifest \}/],
     ['not JSON', '{', SyntaxError]
   ])('refuses to start when the file holds %s', (_, content, error) => {
     const dir = buildDir({ 'build-1-hl.json': content })
+
+    expect(() => loaded(dir)).toThrow(error)
+  })
+
+  const withChunks = (chunks) =>
+    JSON.stringify({ ...VITE_MANIFEST, manifest: { ...VITE_MANIFEST.manifest, ...chunks } })
+
+  it('refuses to start when a chunk imports a key the manifest lacks, naming the file, chunk and key', () => {
+    const dir = buildDir({
+      'build-1-hl.json': withChunks({
+        '_header-BBBB.js': { file: 'assets/header-BBBB.js', imports: ['_gone-ZZZZ.js'] }
+      })
+    })
+    const path = join(dir, '.next', 'vite-manifests', 'build-1-hl.json')
+
+    expect(() => new Server({ dir })).toThrow(
+      `${path}: manifest chunk "_header-BBBB.js" imports "_gone-ZZZZ.js", which is not a key in the manifest`
+    )
+  })
+
+  it.each([
+    ['a chunk that is not an object', { '_x.js': 'assets/x.js' }, /"_x\.js" is not an object/],
+    ['a chunk with no file', { '_x.js': { name: 'x' } }, /"_x\.js" has no string `file`/],
+    ['a chunk whose css is not a list of files', { '_x.js': { file: 'x.js', css: 'x.css' } }, /"_x\.js" has a `css`/],
+    ['a chunk whose imports is not a list of keys', { '_x.js': { file: 'x.js', imports: '_y.js' } }, /"_x\.js" has an `imports`/]
+  ])('refuses to start when the manifest has %s', (_, chunks, error) => {
+    const dir = buildDir({ 'build-1-hl.json': withChunks(chunks) })
 
     expect(() => loaded(dir)).toThrow(error)
   })

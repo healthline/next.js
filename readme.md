@@ -54,7 +54,7 @@ The consumer's build writes one file per site:
   "manifest": <Vite's .vite/manifest.json, unchanged> }
 ```
 
-- **Which file is read.** In production the server reads the file for the current `BUILD_ID` and `SITE`. If there is no file, the site has no Vite pages and nothing changes. The server refuses to start unless the file is JSON holding an object `manifest` and a string `outDir` that is relative and has no `..` segment. It does not check the chunks inside `manifest`.
+- **Which file is read.** In production the server reads the file for the current `BUILD_ID` and `SITE`. If there is no file, the site has no Vite pages and nothing changes. The server refuses to start unless the file is JSON holding an object `manifest` and a string `outDir` that is relative and has no `..` segment. It also refuses a chunk that is not an object with a string `file`, a `css` or `imports` that is not a list of strings, or an `imports` entry that is not a key in `manifest`, and names the file, the chunk and the key.
 - **Which pages it covers.** A page renders from Vite when the manifest has an entry chunk whose `name` is `pages/<route>`, such as `pages/home-page` for `pages/home-page.js`. A page with no matching entry renders from webpack. The server does not warn when that happens; checking that every page sent to Vite has an entry is the consumer's build's job.
 - **What the page gets.** Such a page gets the tags Vite's backend-integration guide describes. Those are a stylesheet link for each CSS file of the entry and of its static imports, a `modulepreload` for each static import, and one `<script type="module">` for the entry. Every URL is `publicPath` + `outDir` + the manifest's file name.
 
