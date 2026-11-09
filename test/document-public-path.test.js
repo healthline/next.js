@@ -1,5 +1,6 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { JSDOM } from 'jsdom'
 import Document from '../server/document'
 
 // The document is the only place that turns a manifest entry into a URL, and
@@ -35,8 +36,10 @@ function renderDocument (chunkFiles = CHUNK_FILES) {
   )
 }
 
-const attributeValues = (markup, pattern) =>
-  Array.from(markup.matchAll(pattern), ([, value]) => value)
+const parse = (markup) => new JSDOM(markup).window.document
+
+const attributeValues = (document, selector, name) =>
+  Array.from(document.querySelectorAll(selector), (element) => element.getAttribute(name))
 
 describe("the document's first inline script", () => {
   // The script's contract is one thing: __NEXT_DATA__ exists before any bundle
@@ -47,8 +50,8 @@ describe("the document's first inline script", () => {
   // the browser and fail only under an ESM bundle.
 
   const inlineScript = (markup) => {
-    const match = markup.match(/<script[^>]*>([^<]*)<\/script>/)
-    return match ? match[1] : null
+    const script = parse(markup).querySelector('script')
+    return script ? script.textContent : null
   }
 
   it('assigns __NEXT_DATA__ and nothing else', () => {
@@ -71,10 +74,10 @@ describe('the document, given chunks the browser must not be sent', () => {
   const expectedURLs = CHUNK_FILES.map((file) => `${PUBLIC_PATH}${file}`)
 
   const urlsFor = (chunkFiles) => {
-    const markup = renderDocument(chunkFiles)
+    const document = parse(renderDocument(chunkFiles))
     return {
-      scripts: attributeValues(markup, /<script[^>]*\bsrc="([^"]+)"/g),
-      preloads: attributeValues(markup, /<link rel=preload href="([^"]+)"/g)
+      scripts: attributeValues(document, 'script[src]', 'src'),
+      preloads: attributeValues(document, 'link[rel=preload]', 'href')
     }
   }
 

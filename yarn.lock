@@ -1712,6 +1712,7 @@ __metadata:
     husky: "npm:>=7"
     jest: "npm:^29"
     jest-environment-jsdom: "npm:^29"
+    jsdom: "npm:^20.0.0"
     lint-staged: "npm:>=10"
     minimist: "npm:1.2.7"
     mitt: "npm:^1.2.0"

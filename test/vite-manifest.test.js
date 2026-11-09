@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { JSDOM } from 'jsdom'
 import Document from '../server/document'
 import Server from '../server'
 import createServer from '../server/next'
@@ -98,16 +99,17 @@ const renderDocument = ({ pathname, viteManifest }) =>
     })
   )
 
+const parse = (markup) => new JSDOM(markup).window.document
+
 // The URLs of the loading tags in a document, by kind, in document order, and
-// every script and link tag with its attributes. Attributes are read by name,
-// so their order and quoting do not matter.
+// every script and link tag with its attributes. The markup is parsed as HTML,
+// so attribute order and quoting do not matter.
 const loadingTags = (markup) => {
   const tags = { moduleScripts: [], modulepreloads: [], stylesheets: [], preloads: [], elements: [] }
-  for (const [, tag, source] of markup.matchAll(/<(script|link)\b([^>]*)>/g)) {
+  for (const element of parse(markup).querySelectorAll('script, link')) {
+    const tag = element.localName
     const attrs = {}
-    for (const [, name, quoted, bare] of source.matchAll(/([a-z-]+)(?:=(?:"([^"]*)"|([^\s"]+)))?/g)) {
-      attrs[name] = quoted !== undefined ? quoted : bare
-    }
+    for (const name of element.getAttributeNames()) attrs[name] = element.getAttribute(name)
     tags.elements.push({ tag, ...attrs })
     if (tag === 'script' && attrs.type === 'module' && attrs.src) tags.moduleScripts.push(attrs.src)
     if (tag === 'link' && attrs.rel === 'modulepreload') tags.modulepreloads.push(attrs.href)
@@ -180,7 +182,7 @@ describe('a page only webpack built', () => {
         async: ''
       }))
     ])
-    expect(markup.match(/<script>([^<]*)<\/script>/)[1]).toBe(
+    expect(parse(markup).querySelector('script:not([src])').textContent).toBe(
       '__NEXT_DATA__={"buildId":"build-1","props":{},"pathname":"/standard","query":{},"publicPath":"https://assets.example.test/prefix/_next/","err":null}'
     )
   })
