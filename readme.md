@@ -65,7 +65,7 @@ The browser entry and the page loader run unchanged in a Vite bundle. Their two 
 
 ### Steps to Publish:
 
-1. **Access Permissions**: Ensure you have the rights to publish to `@healthline/next` on npm and push tags to the repository.
+1. **Access Permissions**: Ensure you have the rights to push tags to the repository. The publish workflow runs in the `publishing` GitHub environment, which requires approval from one of its configured reviewers other than the person who pushed the tag. The run waits in the Actions UI until someone approves it.
 
 2. **Create Release Tag** (using [Semantic Versioning](https://semver.org/)):
 
@@ -89,3 +89,21 @@ The GitHub Actions workflow will automatically:
 - Set the package version from the tag
 - Publish to npm
 - Create a GitHub release with auto-generated release notes
+
+### Credentials: `NPM_TOKEN`
+
+Both workflows install private `@healthline/*` packages from npm, so both need a token. `.github/actions/env-setup` reads it from the `NPM_TOKEN` secret.
+
+This repository is a public fork, and GitHub does not let a fork change visibility, so the organization-level `NPM_TOKEN` does not reach it. The secrets live here instead:
+
+- **Repository secret `NPM_TOKEN`**, used by `ci.yml`: an npm granular access token, read only, packages and scopes limited to `@healthline`, no organization access.
+- **`publishing` environment secret `NPM_TOKEN`**, used by `publish.yml`: a separate token able to publish `@healthline/next`. Its settings are recorded in the secret's description in GitHub, not here.
+
+The environment secret overrides the repository one, so CI never holds the publish token, and fork pull requests receive no secrets.
+
+**If a workflow fails at Install Packages** with `YN0035 ... Package not found (404)` on a private package, npm rejected the token: it has expired, been revoked, or its account lost access. If it fails with `npmAuthToken ... got object`, the secret is missing or empty. Either way, create a new token and replace the secret:
+
+1. You need an npm account in the `healthline` org with access to its packages (https://www.npmjs.com/settings/healthline/packages), and admin rights on this repository's settings.
+2. On npmjs.com: profile, Access Tokens, Generate New Token, with the settings above or from the secret's description.
+3. In GitHub, replace `NPM_TOKEN` with the new value: the repository secret at https://github.com/healthline/next.js/settings/secrets/actions, or the publish secret under the `publishing` environment at https://github.com/healthline/next.js/settings/environments.
+4. Re-run the failed workflow.
