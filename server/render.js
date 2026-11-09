@@ -3,7 +3,6 @@ import { createElement } from 'react'
 import { renderToString, renderToStaticMarkup } from 'react-dom/server'
 import stripAnsi from 'strip-ansi'
 import Head, { defaultHead } from '../lib/head'
-import { isServableChunk } from './chunks'
 
 export const $HEAD = Symbol.for('head')
 
@@ -91,8 +90,7 @@ export async function doDocRender (page, initialProps, { amp, dev, dir, publicPa
           path.chunks.push(
             ...entrypoint.chunks
               .reduce((prev, { files }) => prev.concat(files), [])
-              // Shared with the document's own filter; see server/chunks.js.
-              .filter(isServableChunk)
+              .filter(name => !/\.map$/.test(name) && !/hot-update.js/.test(name))
               .map(file => ({
                 file,
                 module: true

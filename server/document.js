@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import PropTypes from 'prop-types'
 import htmlescape from 'htmlescape'
 import { posix } from 'path'
-import { isServableChunk } from './chunks'
 
 // A page's Vite entry is the entry chunk named after the page. The site's Vite
 // build names each page input the way webpack names the page's entry, minus
@@ -81,8 +80,6 @@ function scriptsForEntry (pathname, entrypoints) {
   if (entry) {
     return entry.chunks
       .reduce((prev, { file, module }) => prev.concat({ file, module }), [])
-      // A manifest chunk is { file, module }; see server/chunks.js.
-      .filter(({ file }) => isServableChunk(file))
   } else {
     return []
   }

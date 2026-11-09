@@ -182,9 +182,18 @@ describe('a page only webpack built', () => {
         async: ''
       }))
     ])
-    expect(parse(markup).querySelector('script:not([src])').textContent).toBe(
-      '__NEXT_DATA__={"buildId":"build-1","props":{},"pathname":"/standard","query":{},"publicPath":"https://assets.example.test/prefix/_next/","err":null}'
-    )
+
+    const inlineScript = parse(markup).querySelector('script:not([src])').textContent
+    expect(inlineScript).toMatch(/^__NEXT_DATA__=\{/)
+    // JSON.parse throws on anything after the object, such as a second assignment.
+    expect(JSON.parse(inlineScript.slice('__NEXT_DATA__='.length))).toEqual({
+      buildId: 'build-1',
+      props: {},
+      pathname: '/standard',
+      query: {},
+      publicPath: PUBLIC_PATH,
+      err: null
+    })
   })
 
   it('renders the same markup when the site has a Vite manifest for its other pages', () => {
