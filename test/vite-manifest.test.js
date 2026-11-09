@@ -232,6 +232,22 @@ describe("doDocRender, for a page the site's Vite build produced", () => {
 
     expect(loadingTags(markup).moduleScripts).toEqual([url('assets/pages/home-page-AAAA.js')])
   })
+
+  it("keeps the server's manifest when the document's getInitialProps returns one", async () => {
+    const dir = buildDirWithDocument(`
+      const Document = require(${JSON.stringify(require.resolve('../server/document'))}).default
+      class OverridingPage extends Document {}
+      OverridingPage.getInitialProps = async ({ renderPage }) => ({
+        ...renderPage(),
+        viteManifest: { outDir: 'elsewhere', manifest: {} }
+      })
+      module.exports = OverridingPage
+    `)
+
+    const markup = await docRender(dir, '/home-page', VITE_MANIFEST)
+
+    expect(loadingTags(markup).moduleScripts).toEqual([url('assets/pages/home-page-AAAA.js')])
+  })
 })
 
 describe("the site's Vite manifest, as the server loads it at startup", () => {

@@ -101,9 +101,11 @@ export async function doDocRender (page, initialProps, { amp, dev, dir, publicPa
         }
         return prev
       }, {}),
-    viteManifest,
     dev,
-    ...docProps
+    ...docProps,
+    // After docProps, so a Document's getInitialProps cannot replace the
+    // manifest the server read at startup.
+    viteManifest
   })
 
   return '<!DOCTYPE html>' + renderToStaticMarkup(doc)
