@@ -6,10 +6,8 @@
 // renames the script to `_postinstall` in package.json, and `postpack` runs
 // `pinst --enable`, which renames it back.
 //
-// That wiring rots silently. pinst's rename sat on `prepublishOnly` and
-// `postpublish`, which Yarn never runs; it now sits on `prepack` and
-// `postpack`. test/package-json.test.js is this file's counterpart for
-// `files`.
+// That wiring rots silently: Yarn never runs `prepublishOnly` or
+// `postpublish`, so the rename has to sit on `prepack` and `postpack`.
 //
 // So the claim here is made against a real tarball rather than against the
 // manifest: pack the package the way a publish would, read the manifest out

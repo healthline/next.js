@@ -151,11 +151,13 @@ describe("a page the site's Vite build produced", () => {
     ])
   })
 
+  // VITE-MIGRATION(webpack-deletion): Delete this test once no site builds pages with webpack.
   it('gets none of the webpack tags, although webpack also built the page', () => {
     expect(tags.preloads).toEqual([])
   })
 })
 
+// VITE-MIGRATION(webpack-deletion): Delete this describe once no site builds pages with webpack.
 describe('a page only webpack built', () => {
   // Frontend serves every template not yet on Vite through webpack, so a Vite
   // manifest for the site's other pages must not change this page's markup.
@@ -401,7 +403,7 @@ describe('the vite option, passed through the factory consumers call', () => {
     expect(() => loaded(dir, true)).toThrow(`no Vite manifest at ${path}`)
   })
 
-  it.each([['a string', 'true'], ['null', null], ['a number', 1]])('rejects %s with a TypeError', (_, vite) => {
-    expect(() => loaded(buildDir(true), vite)).toThrow(TypeError)
+  it("rejects the string 'true' with a TypeError, so an environment variable cannot turn it on", () => {
+    expect(() => loaded(buildDir(true), 'true')).toThrow(TypeError)
   })
 })

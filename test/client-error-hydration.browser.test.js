@@ -1,44 +1,36 @@
 /* global document */
 
 // The server can hand the client an error: it renders the error page, puts the
-// markup in the container, and sets __NEXT_DATA__.err. The entry then reaches
-// renderError before it has rendered anything itself, and renderError begins by
-// unmounting the container -- which does nothing, because React never mounted
-// into it (ReactDOM.unmountComponentAtNode returns false for a container it
-// does not own). So the error page's first render is an ordinary first render:
-// it adopts the server's error markup by hydration, exactly as a normal page
-// would.
+// markup in the container, and sets __NEXT_DATA__.err. renderError then
+// unmounts a container React never mounted into, which does nothing, so the
+// error page's first render hydrates the server's error markup the way a
+// normal page would.
 //
-// That is the behavior this suite pins. It was reachable in 26.1.1 too but no
-// test drove it through the entry, so nothing said whether the error page
-// adopts the markup or replaces it, and nothing would have caught the adoption
-// happening over markup it disagrees with.
-//
-// Two things make the assertions mean something.
-//
-// No console.error spy is installed here, even though renderError reports the
-// error through it. Spying would replace the wrapper that
-// test/setup/fail-on-hydration-warning.js installs and so suspend the project
-// hydration guard for this suite -- and the guard is half of what is being
-// asserted: React 16 keeps the server's nodes on a mismatch and only warns, so
-// the identity assertion alone would pass over broken hydration. The cost is
-// the reported error appearing in this suite's output.
-//
-// The page and the error page render different markup, so a run where the
-// error page was not the thing rendered is visible rather than silently
-// equivalent.
+// React 16 does not throw on a hydration mismatch: it keeps the server's nodes
+// and warns through console.error. So node identity alone does not prove the
+// markup agreed, and the test also asserts console.error received nothing but
+// the error renderError reports.
 
 const STATUS_CODE = 500
 const ERROR_MARKUP = `<span id="error">error:${STATUS_CODE}</span>`
 
 describe('the client entry, handed an error and its markup by the server', () => {
-  let serverRenderedNode
+  let consoleError
 
-  beforeAll(async () => {
+  beforeEach(() => {
+    consoleError = jest.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    consoleError.mockRestore()
+  })
+
+  it('adopts the error markup the server sent instead of rendering the page', async () => {
+    // A plain object, the way it survives __NEXT_DATA__ serialization.
+    const err = { message: 'the server failed to render', statusCode: STATUS_CODE }
     global.__NEXT_DATA__ = {
       props: {},
-      // A plain object, the way it survives __NEXT_DATA__ serialization.
-      err: { message: 'the server failed to render', statusCode: STATUS_CODE },
+      err,
       pathname: '/',
       query: {},
       publicPath: '/_next/'
@@ -46,10 +38,10 @@ describe('the client entry, handed an error and its markup by the server', () =>
     document.body.innerHTML = `<div id="__next">${ERROR_MARKUP}</div>`
     // Captured before the entry runs, so an adopted node is distinguishable
     // from a replacement.
-    serverRenderedNode = document.getElementById('error')
+    const serverRenderedNode = document.getElementById('error')
 
-    // A fresh react-dom: the hydration warning is gated on a module-level flag
-    // that no later hydration resets. See the setup file.
+    // React 16 warns about a hydration mismatch once per react-dom instance, so
+    // this boot needs a fresh module registry for its warning to be observable.
     jest.resetModules()
 
     const { createElement } = require('react')
@@ -77,20 +69,11 @@ describe('the client entry, handed an error and its markup by the server', () =>
     })
     await client.default()
     await rendered
-  })
 
-  it('renders the error page rather than the page for the route', () => {
-    expect(document.getElementById('error').textContent).toBe(
-      `error:${STATUS_CODE}`
-    )
-    expect(document.getElementById('page')).toBeNull()
-  })
-
-  it('adopts the error markup the server sent instead of replacing it', () => {
-    // Hydration reuses the server's node. A plain render would have discarded
-    // it and built a new one, and the container would be holding a node this
-    // test never saw.
     expect(document.getElementById('error')).toBe(serverRenderedNode)
     expect(serverRenderedNode.isConnected).toBe(true)
+    expect(serverRenderedNode.textContent).toBe(`error:${STATUS_CODE}`)
+    expect(document.getElementById('page')).toBeNull()
+    expect(consoleError.mock.calls).toEqual([[err]])
   })
 })
