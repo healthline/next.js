@@ -157,7 +157,9 @@ describe("a page the site's Vite build produced", () => {
   })
 })
 
-// VITE-MIGRATION(webpack-deletion): Delete this describe once no site builds pages with webpack.
+// VITE-MIGRATION(webpack-deletion): Delete this describe once no site builds
+// pages with webpack. Move its __NEXT_DATA__ parse check into the Vite
+// describe first: every page renders that inline script.
 describe('a page only webpack built', () => {
   // Frontend serves every template not yet on Vite through webpack, so a Vite
   // manifest for the site's other pages must not change this page's markup.
@@ -403,7 +405,10 @@ describe('the vite option, passed through the factory consumers call', () => {
     expect(() => loaded(dir, true)).toThrow(`no Vite manifest at ${path}`)
   })
 
-  it("rejects the string 'true' with a TypeError, so an environment variable cannot turn it on", () => {
-    expect(() => loaded(buildDir(true), 'true')).toThrow(TypeError)
+  // Each row is a different way to get the guard wrong: a string from an
+  // environment variable, a `!= null` check that lets null through, and a
+  // string-only check that lets other types through.
+  it.each([['a string', 'true'], ['null', null], ['a number', 1]])('rejects %s with a TypeError', (_, vite) => {
+    expect(() => loaded(buildDir(true), vite)).toThrow(TypeError)
   })
 })
