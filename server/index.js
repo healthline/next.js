@@ -4,7 +4,10 @@ import fs from 'fs'
 import getConfig from './config'
 
 export default class Server {
-  constructor ({ dir = '.', dev = false, quiet = false, conf = null } = {}) {
+  constructor ({ dir = '.', dev = false, quiet = false, conf = null, vite } = {}) {
+    if (vite !== undefined && typeof vite !== 'boolean') {
+      throw new TypeError(`The vite option must be true, false or undefined, not ${JSON.stringify(vite)}`)
+    }
     this.dir = resolve(dir)
     this.dev = dev
     this.quiet = quiet
@@ -23,7 +26,7 @@ export default class Server {
       publicPath: `${assetPrefix}/_next/`,
       buildId,
       entrypoints: !dev ? this.readEntrypoints() : undefined,
-      viteManifest: !dev ? this.readViteManifest(buildId) : undefined
+      viteManifest: !dev && vite !== false ? this.readViteManifest(buildId, vite === true) : undefined
     }
   }
 
@@ -105,11 +108,15 @@ export default class Server {
   // outDir is where the manifest's file names start, so a URL is publicPath,
   // outDir, then the file. The build is the one place that says where its
   // output lives. Because the name carries BUILD_ID, a file an earlier build
-  // left in .next is not read. No file means the site has no Vite pages.
-  readViteManifest (buildId) {
+  // left in .next is not read. No file means the site has no Vite pages,
+  // unless the caller passed `vite: true`, which requires the file.
+  readViteManifest (buildId, required) {
     const site = process.env.SITE || 'default'
     const path = join(this.dir, '.next', 'vite-manifests', `${buildId}-${site}.json`)
     if (!fs.existsSync(path)) {
+      if (required) {
+        throw new Error(`The vite option is true, but there is no Vite manifest at ${path}`)
+      }
       return undefined
     }
 

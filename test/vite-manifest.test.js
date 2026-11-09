@@ -5,6 +5,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import Document from '../server/document'
 import Server from '../server'
+import createServer from '../server/next'
 
 // A page the site's Vite build produced renders the way Vite's
 // backend-integration guide renders an entry from the manifest (vitejs/vite
@@ -336,5 +337,60 @@ describe("the site's Vite manifest, as the server loads it at startup", () => {
     const dir = buildDir({ 'build-1-hl.json': withChunks(chunks) })
 
     expect(() => loaded(dir)).toThrow(error)
+  })
+})
+
+describe('the vite option, passed through the factory consumers call', () => {
+  const SITE = 'hl'
+  let site
+
+  beforeEach(() => {
+    site = process.env.SITE
+    process.env.SITE = SITE
+  })
+
+  afterEach(() => {
+    if (site === undefined) {
+      delete process.env.SITE
+    } else {
+      process.env.SITE = site
+    }
+  })
+
+  const buildDir = (withManifest) => {
+    const dir = mkdtempSync(join(tmpdir(), 'next-vite-option-'))
+    mkdirSync(join(dir, '.next', 'vite-manifests'), { recursive: true })
+    writeFileSync(join(dir, '.next', 'BUILD_ID'), 'build-1')
+    writeFileSync(join(dir, '.next', 'webpack-entrypoints.json'), JSON.stringify({ [SITE]: ENTRYPOINTS }))
+    if (withManifest) {
+      writeFileSync(join(dir, '.next', 'vite-manifests', 'build-1-hl.json'), JSON.stringify(VITE_MANIFEST))
+    }
+    return dir
+  }
+
+  const loaded = (dir, vite) => createServer({ dir, vite }).renderOpts.viteManifest
+
+  it('reads the manifest when there is one, if left out', () => {
+    expect(loaded(buildDir(true), undefined)).toEqual(VITE_MANIFEST)
+    expect(loaded(buildDir(false), undefined)).toBeUndefined()
+  })
+
+  it('never reads the manifest when false, even when there is one', () => {
+    expect(loaded(buildDir(true), false)).toBeUndefined()
+  })
+
+  it('reads the manifest when true', () => {
+    expect(loaded(buildDir(true), true)).toEqual(VITE_MANIFEST)
+  })
+
+  it('refuses to start when true and there is no manifest, naming the expected path', () => {
+    const dir = buildDir(false)
+    const path = join(dir, '.next', 'vite-manifests', 'build-1-hl.json')
+
+    expect(() => loaded(dir, true)).toThrow(`no Vite manifest at ${path}`)
+  })
+
+  it.each([['a string', 'true'], ['null', null], ['a number', 1]])('rejects %s with a TypeError', (_, vite) => {
+    expect(() => loaded(buildDir(true), vite)).toThrow(TypeError)
   })
 })
