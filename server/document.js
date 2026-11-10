@@ -149,9 +149,10 @@ export class NextScript extends Component {
       )
     }
 
+    // Puts __NEXT_DATA__ on the page before any bundle runs.
     return <Fragment>
       <script nonce={this.props.nonce} dangerouslySetInnerHTML={{
-        __html: `module={};__NEXT_DATA__=${htmlescape(__NEXT_DATA__)}`
+        __html: `__NEXT_DATA__=${htmlescape(__NEXT_DATA__)}`
       }} />
       {scripts}
     </Fragment>
