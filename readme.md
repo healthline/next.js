@@ -48,7 +48,7 @@ Note: you'll have to change it back to `node_modules` if you want to rebuild it
 
 ### Steps to Publish:
 
-1. **Access Permissions**: Ensure you have the rights to publish to `@healthline/next` on npm and push tags to the repository.
+1. **Access Permissions**: Ensure you have the rights to push tags to the repository. The publish run then waits in the Actions UI for a reviewer of the `publishing` environment, other than whoever pushed the tag, to approve it.
 
 2. **Create Release Tag** (using [Semantic Versioning](https://semver.org/)):
 
@@ -72,3 +72,12 @@ The GitHub Actions workflow will automatically:
 - Set the package version from the tag
 - Publish to npm
 - Create a GitHub release with auto-generated release notes
+
+### Credentials: `NPM_TOKEN`
+
+Both workflows read an npm token from a secret named `NPM_TOKEN`.
+
+- **The repository secret**, used by CI, should be a read-only token for `@healthline` packages.
+- **The `publishing` environment's secret** must be a separate token that can publish `@healthline/next`. It overrides the repository secret, so CI never holds the publish token; without it, the publish step fails.
+
+If a workflow fails at Install Packages with `YN0035 ... Package not found (404)`, npm rejected its token: it expired, was revoked, or lost access. With `npmAuthToken ... got object`, the secret is missing or empty. Either way, someone with access to the `healthline` npm org replaces the secret that workflow reads (CI's repository secret, or the `publishing` environment's) with a new granular token of the same scope, then re-runs it.

@@ -1,14 +1,18 @@
 /* global __NEXT_DATA__ */
-import { createElement, startTransition } from 'react'
+import { createElement } from 'react'
+import ReactDOM from 'react-dom'
 import mitt from 'mitt'
 import { waitForPage } from '../lib/page-loader'
 import router, { createRouter } from './router'
 import { getURL } from '../lib/url'
-import { hydrateRoot } from 'react-dom/client'
 
 const { props, err, pathname, query } = __NEXT_DATA__
 
-__webpack_public_path__ = __NEXT_DATA__.publicPath; // eslint-disable-line
+// The name exists only inside a webpack bundle; assigning it anywhere else,
+// such as under Jest, throws. webpack folds the typeof to a constant.
+if (typeof __webpack_public_path__ !== 'undefined') { // eslint-disable-line
+  __webpack_public_path__ = __NEXT_DATA__.publicPath; // eslint-disable-line
+}
 
 const asPath = getURL()
 
@@ -16,7 +20,6 @@ const appContainer = document.getElementById('__next')
 
 let lastAppProps
 let ErrorComponent
-let reactRoot = null
 
 export const emitter = mitt()
 
@@ -106,6 +109,12 @@ export function render ({ Component, props, err }) {
 // 404 and 500 errors are special kind of errors
 // and they are still handle via the main render method.
 export function renderError (error) {
+  // The app that threw can be left half-rendered. Unmount it so the error page
+  // renders into an empty container instead of reconciling with that tree.
+  ReactDOM.unmountComponentAtNode(appContainer)
+
+  console.error(error)
+
   return ErrorComponent.getInitialProps({
     err: error,
     pathname,
@@ -119,18 +128,17 @@ export function renderError (error) {
   })
 }
 
-// This method is responsible for rending react elements in the DOM.
-// If the root has not been defined yet, it will hydrate the element.
-// If the root has already been defined, it will use startTransition to update the tree.
+// Hydrating an empty container warns in React 16, so a first render with no
+// server markup renders instead.
+let isInitialRender = true
 function renderReactElement (reactEl, domEl) {
   // Wrap page in app-level enhancer, if defined
   reactEl = Enhancer ? createElement(Enhancer, null, reactEl) : reactEl
 
-  if (!reactRoot) {
-    reactRoot = hydrateRoot(domEl, reactEl)
+  if (isInitialRender && domEl.firstChild) {
+    ReactDOM.hydrate(reactEl, domEl)
   } else {
-    startTransition(() => {
-      reactRoot.render(reactEl)
-    })
+    ReactDOM.render(reactEl, domEl)
   }
+  isInitialRender = false
 }
