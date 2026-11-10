@@ -1,15 +1,9 @@
 /* global document */
 
-// The server can hand the client an error: it renders the error page, puts the
-// markup in the container, and sets __NEXT_DATA__.err. renderError then
-// unmounts a container React never mounted into, which does nothing, so the
-// error page's first render hydrates the server's error markup the way a
-// normal page would.
-//
-// React 16 does not throw on a hydration mismatch: it keeps the server's nodes
-// and warns through console.error. So node identity alone does not prove the
-// markup agreed, and the test also asserts console.error received nothing but
-// the error renderError reports.
+// When the server sends its error page, renderError's unmount finds nothing
+// mounted, so the error page hydrates the server's markup like any page.
+// React 16 only warns on a mismatch, so the test also checks console.error got
+// nothing but the error renderError reports.
 
 const STATUS_CODE = 500
 const ERROR_MARKUP = `<span id="error">error:${STATUS_CODE}</span>`

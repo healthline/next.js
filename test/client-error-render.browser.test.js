@@ -8,9 +8,9 @@
 // it would reconcile, reusing the DOM node and skipping componentWillUnmount,
 // so only a real unmount produces a fresh node.
 //
-// `next/client` is unreachable through its alias under Jest, so the entry is
-// required relatively. The container starts empty so the first render is an
-// ordinary render rather than a hydration.
+// The container starts empty, so the first render is a plain render. The
+// entry is required relatively because the `next/client` alias does not
+// resolve under Jest.
 
 const ERROR_MESSAGE = 'the page component threw'
 

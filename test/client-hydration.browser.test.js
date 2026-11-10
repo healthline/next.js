@@ -1,17 +1,13 @@
 /* global document */
 
-// The client entry reads __NEXT_DATA__ and the #__next container while its
-// module body runs, so both are arranged before the entry is required.
-// `next/client` is unreachable through its alias under Jest, so the entry is
-// required relatively.
-//
-// The page and the error page render different markup, so a run where the
-// error page rendered in the page's place is visible in the DOM.
-//
 // React 16 does not throw on a hydration mismatch: it keeps the server's nodes
-// and warns through console.error. So node identity alone does not prove the
-// markup agreed, and the tests that render first also assert console.error
-// stayed silent.
+// and warns through console.error. So the first-render tests check that
+// console.error stayed silent, and the adoption test also checks that the
+// server's node survived.
+//
+// The entry reads __NEXT_DATA__ and #__next as its module body runs, so both
+// are set up before it is required. It is required relatively because the
+// `next/client` alias does not resolve under Jest.
 
 const PAGE_MARKUP = '<span id="marker">marker:1</span>'
 
