@@ -1,3 +1,6 @@
+// VITE-MIGRATION(webpack-deletion): delete this file with the HMR wait in
+// lib/page-loader.js.
+//
 // registerPage reads webpack's HMR record before it registers a page. Under
 // Jest and inside a webpack bundle, `module` is the CommonJS wrapper binding,
 // so an unguarded `module.hot` read passes there. An ESM bundle such as Vite's

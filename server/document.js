@@ -74,6 +74,8 @@ function viteAssets (pathname, viteManifest) {
   }
 }
 
+// VITE-MIGRATION(webpack-deletion): delete this and the webpack branches of
+// getPreloadMainLinks and getScripts once every page has a Vite entry.
 function scriptsForEntry (pathname, entrypoints) {
   const entry = entrypoints[`pages${pathname}.js`]
 

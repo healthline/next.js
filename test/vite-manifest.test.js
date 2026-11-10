@@ -355,6 +355,8 @@ describe("the site's Vite manifest, as the server loads it at startup", () => {
   })
 })
 
+// VITE-MIGRATION(webpack-deletion): when the `vite` option goes, keep the
+// missing-manifest refusal as the test of the new default and delete the rest.
 describe('the vite option, passed through the factory consumers call', () => {
   const SITE = 'hl'
   let site

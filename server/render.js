@@ -69,6 +69,9 @@ export async function doPageRender (req, res, pathname, query, initialProps, {
 export async function doDocRender (page, initialProps, { amp, dev, dir, publicPath, entrypoints, viteManifest, hotReloader, buildId }) {
   const pageDir = join(dir, '.next', 'server', 'pages')
 
+  // VITE-MIGRATION(server-tree-switch): _document and pages load from the
+  // server tree in .next/server/pages; change this when that tree is built
+  // another way.
   let Document = require(join(pageDir, amp ? '_amp' : '_document'))
   Document = Document.default || Document
 
@@ -82,6 +85,8 @@ export async function doDocRender (page, initialProps, { amp, dev, dir, publicPa
       publicPath: docProps.publicPath || publicPath,
       err: docProps.err
     },
+    // VITE-MIGRATION(webpack-deletion): the dev fallback reads webpack's
+    // compilation; delete it with client/next-dev.js.
     entrypoints:
       entrypoints ||
       hotReloader.multiStats.stats.reduce((prev, { compilation }) => {

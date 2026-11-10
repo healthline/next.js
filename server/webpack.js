@@ -1,3 +1,5 @@
+// VITE-MIGRATION(webpack-deletion): delete this file, with bin/next-build,
+// once webpack builds nothing for any site.
 import { resolve } from 'path'
 import { webpack } from '@healthline/six-million'
 import getConfig from './config'

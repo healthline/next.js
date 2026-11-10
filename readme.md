@@ -63,6 +63,8 @@ The consumer's build writes one file per site:
 - **What the page gets.** Such a page gets the tags Vite's backend-integration guide describes. Those are a stylesheet link for each CSS file of the entry and of its static imports, a `modulepreload` for each static import, and one `<script type="module">` for the entry. Every URL is `publicPath` + `outDir` + the manifest's file name.
 - **Turning it off or requiring it.** `next({ vite })` takes `true`, `false` or nothing. Left out, the server reads the file if it exists, as above. With `false` it never reads the file, so every page renders from webpack. With `true` the server refuses to start when the file is missing, and names the path it expected. Any other value is a `TypeError`. In development the server reads no manifest, whatever the option says.
 
+Code that exists only for webpack carries a `VITE-MIGRATION(<phase>)` comment saying what to delete and when; `git grep -n "VITE-MIGRATION("` lists them.
+
 The browser entry and the page loader run unchanged in a Vite bundle. Their two webpack-only names, `__webpack_public_path__` and `module.hot`, are read behind `typeof` checks. webpack folds those checks to constants, so a webpack build behaves as before.
 
 ## Publishing to [@healthline/next](https://www.npmjs.com/package/@healthline/next)

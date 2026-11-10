@@ -26,6 +26,8 @@ export default class Server {
       publicPath: `${assetPrefix}/_next/`,
       buildId,
       entrypoints: !dev ? this.readEntrypoints() : undefined,
+      // VITE-MIGRATION(webpack-deletion): `vite: false` falls back to webpack;
+      // drop the option once there is no webpack build to fall back to.
       viteManifest: !dev && vite !== false ? this.readViteManifest(buildId, vite === true) : undefined
     }
   }
@@ -87,6 +89,8 @@ export default class Server {
     return fs.readFileSync(buildIdPath, 'utf8').trim()
   }
 
+  // VITE-MIGRATION(webpack-deletion): delete this and the `entrypoints` render
+  // option once every page renders from a Vite manifest.
   readEntrypoints () {
     const buildIdPath = join(this.dir, '.next', 'webpack-entrypoints.json')
     const entrypoints = JSON.parse(fs.readFileSync(buildIdPath, 'utf8'))
