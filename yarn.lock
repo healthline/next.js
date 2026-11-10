@@ -1334,8 +1334,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@healthline/next@workspace:."
   dependencies:
+    "@babel/runtime": "npm:^7.25.7"
     "@healthline/six-million": "npm:~8.2.1"
     babel-eslint: "npm:10.0.3"
+    babel-plugin-module-resolver: "npm:^3.2.0"
     del: "npm:^5.1.0"
     htmlescape: "npm:^1.1.1"
     husky: "npm:^9.1.7"

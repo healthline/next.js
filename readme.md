@@ -69,7 +69,6 @@ Replace `<version>` with the release's version, such as `28.0.0`:
 git switch master && git pull
 git status                     # should report a clean working tree
 yarn install --immutable
-yarn build
 yarn version <version> --immediate
 yarn npm publish --access restricted --dry-run
 yarn npm publish --access restricted
@@ -83,7 +82,7 @@ git tag v<version> && git push origin v<version>
 gh release create v<version> --title <version> --generate-notes
 ```
 
-- The dry run lists the files it would publish. They should match `files` in `package.json`.
+- Each `yarn npm publish` builds the package first, through the `prepack` script. The dry run then lists the files it would publish, which should match `files` in `package.json`.
 - `yarn version` sets the version for this publish only. The tag records it, and `package.json` on `master` keeps the version it already had.
-- npm requires a two-factor code to publish. Add `--otp <code>` if Yarn doesn't prompt for it.
+- npm requires a two-factor code to publish, and Yarn asks for it once the build has finished. A code passed up front with `--otp` can expire while the build runs.
 - A publish that fails with `403 (Forbidden)` means your account lacks publish rights on `@healthline/next`. Ask an admin of the healthline npm org.
