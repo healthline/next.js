@@ -16,8 +16,8 @@ const transform = {
 
 module.exports = {
   rootDir: __dirname,
-  // A *.browser.test.js file runs in jsdom. Every other *.test.js file runs in
-  // node, apart from packed-manifest.test.js, which has the pack project.
+  // A *.browser.test.js file runs in jsdom and every other test in node. The
+  // tarball test has its own config, jest.pack.config.js.
   projects: [
     {
       displayName: 'node',
@@ -25,17 +25,6 @@ module.exports = {
       testEnvironment: 'node',
       testMatch: ['<rootDir>/test/**/*.test.js'],
       testPathIgnorePatterns: ['\\.browser\\.test\\.js$', '/test/packed-manifest\\.test\\.js$'],
-      transform
-    },
-    {
-      // `yarn pack` rebuilds node/ and browser/ and rewrites package.json, so
-      // this must not run beside the other projects. A bare `yarn jest` runs
-      // all three together; `yarn test` and CI avoid that by selecting
-      // projects. Run this one alone: `yarn jest --selectProjects pack --runInBand`.
-      displayName: 'pack',
-      rootDir: __dirname,
-      testEnvironment: 'node',
-      testMatch: ['<rootDir>/test/packed-manifest.test.js'],
       transform
     },
     {

@@ -36,6 +36,5 @@ jobs:
 
       - run: yarn test --ci
 
-      # Packing rebuilds node/ and browser/ and rewrites package.json, so the
-      # pack suite runs alone, after the suites that read them.
-      - run: yarn jest --selectProjects pack --runInBand --ci
+      # Last, because packing rebuilds and rewrites the package.
+      - run: yarn test:pack --ci
