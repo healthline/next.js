@@ -9,7 +9,6 @@ function scriptsForEntry (pathname, entrypoints) {
   if (entry) {
     return entry.chunks
       .reduce((prev, { file, module }) => prev.concat({ file, module }), [])
-      .filter(({ name }) => !/hot-update/.test(name))
   } else {
     return []
   }
