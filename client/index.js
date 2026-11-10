@@ -10,6 +10,8 @@ const { props, err, pathname, query } = __NEXT_DATA__
 
 // The name exists only inside a webpack bundle; assigning it anywhere else,
 // such as under Jest, throws. webpack folds the typeof to a constant.
+// VITE-MIGRATION(webpack-deletion): delete this block once webpack builds no
+// site's client.
 if (typeof __webpack_public_path__ !== 'undefined') { // eslint-disable-line
   __webpack_public_path__ = __NEXT_DATA__.publicPath; // eslint-disable-line
 }

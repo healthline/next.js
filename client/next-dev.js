@@ -1,3 +1,5 @@
+// VITE-MIGRATION(webpack-deletion): delete this dev entry, which loads
+// webpack's HMR client, once no site's dev server runs webpack.
 import initNext, * as next from './'
 import initWebpackHMR from '@healthline/six-million/webpack-hot-middleware-client'
 

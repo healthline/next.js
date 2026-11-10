@@ -44,6 +44,29 @@ This creates `~/.yarnrc.yml` with your auth token.
 
 Note: you'll have to change it back to `node_modules` if you want to rebuild it
 
+## Serving pages built by Vite
+
+A site can build some or all of its pages with Vite instead of webpack. The server serves those pages from Vite's own manifest. Every other page renders from webpack's entrypoints, as before.
+
+The Vite plugin that generates page entries and writes the manifest file lives in frontend (`scripts/vite-plugins/healthline-next.js`), not in this package.
+
+The consumer's build writes one file per site:
+
+```
+.next/vite-manifests/<BUILD_ID>-<site>.json
+{ "outDir": "<Vite's build.outDir, relative to .next/bundles>",
+  "manifest": <Vite's .vite/manifest.json, unchanged> }
+```
+
+- **Which file is read.** In production the server reads the file for the current `BUILD_ID` and `SITE`. If there is no file, the site has no Vite pages and nothing changes. The server refuses to start unless the file is JSON holding an object `manifest` and a string `outDir` that is relative and has no `..` segment. It also refuses a chunk that is not an object with a string `file`, a `css` or `imports` that is not a list of strings, or an `imports` entry that is not a key in `manifest`, and names the file, the chunk and the key.
+- **Which pages it covers.** A page renders from Vite when the manifest has an entry chunk whose `name` is `pages/<route>`, such as `pages/home-page` for `pages/home-page.js`. A page with no matching entry renders from webpack. The server does not warn when that happens; checking that every page sent to Vite has an entry is the consumer's build's job.
+- **What the page gets.** Such a page gets the tags Vite's backend-integration guide describes. Those are a stylesheet link for each CSS file of the entry and of its static imports, a `modulepreload` for each static import, and one `<script type="module">` for the entry. Every URL is `publicPath` + `outDir` + the manifest's file name.
+- **Turning it off or requiring it.** `next({ vite })` takes `true`, `false` or nothing. Left out, the server reads the file if it exists, as above. With `false` it never reads the file, so every page renders from webpack. With `true` the server refuses to start when the file is missing, and names the path it expected. Any other value is a `TypeError`. In development the server reads no manifest, whatever the option says.
+
+Code that exists only for webpack carries a `VITE-MIGRATION(<phase>)` comment saying what to delete and when; `git grep -n "VITE-MIGRATION("` lists them.
+
+The browser entry and the page loader run unchanged in a Vite bundle. Their two webpack-only names, `__webpack_public_path__` and `module.hot`, are read behind `typeof` checks. webpack folds those checks to constants, so a webpack build behaves as before.
+
 ## Publishing to [@healthline/next](https://www.npmjs.com/package/@healthline/next)
 
 ### Steps to Publish:

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// VITE-MIGRATION(webpack-deletion): delete this command, with
+// server/webpack.js, once webpack builds nothing for any site.
 const { resolve, join } = require('path')
 const { existsSync } = require('fs')
 const parseArgs = require('minimist')

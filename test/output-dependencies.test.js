@@ -24,6 +24,8 @@ const builtins = new Set(builtinModules)
 // Known undeclared specifiers. @healthline/six-million is only in
 // devDependencies; whether to declare it, make its requirers unreachable, or
 // record it as consumer-supplied is an open decision.
+// VITE-MIGRATION(webpack-deletion): drop the six-million exemption once no
+// published file imports it; babel.js may still, after webpack is gone.
 const exemptions = new Set([
   '@healthline/six-million'
 ])

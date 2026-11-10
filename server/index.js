@@ -1,10 +1,13 @@
-import { resolve, join } from 'path'
+import { resolve, join, posix } from 'path'
 import fs from 'fs'
 
 import getConfig from './config'
 
 export default class Server {
-  constructor ({ dir = '.', dev = false, quiet = false, conf = null } = {}) {
+  constructor ({ dir = '.', dev = false, quiet = false, conf = null, vite } = {}) {
+    if (vite !== undefined && typeof vite !== 'boolean') {
+      throw new TypeError(`The vite option must be true, false or undefined, not ${JSON.stringify(vite)}`)
+    }
     this.dir = resolve(dir)
     this.dev = dev
     this.quiet = quiet
@@ -22,7 +25,10 @@ export default class Server {
       hotReloader: this.hotReloader,
       publicPath: `${assetPrefix}/_next/`,
       buildId,
-      entrypoints: !dev ? this.readEntrypoints() : undefined
+      entrypoints: !dev ? this.readEntrypoints() : undefined,
+      // VITE-MIGRATION(webpack-deletion): `vite: false` falls back to webpack;
+      // drop the option once there is no webpack build to fall back to.
+      viteManifest: !dev && vite !== false ? this.readViteManifest(buildId, vite === true) : undefined
     }
   }
 
@@ -83,6 +89,8 @@ export default class Server {
     return fs.readFileSync(buildIdPath, 'utf8').trim()
   }
 
+  // VITE-MIGRATION(webpack-deletion): delete this and the `entrypoints` render
+  // option once every page renders from a Vite manifest.
   readEntrypoints () {
     const buildIdPath = join(this.dir, '.next', 'webpack-entrypoints.json')
     const entrypoints = JSON.parse(fs.readFileSync(buildIdPath, 'utf8'))
@@ -93,6 +101,45 @@ export default class Server {
     return entrypoints[process.env.SITE || 'default']
   }
 
+  // The site's Vite build output, when the site's build took any page through
+  // Vite. The build writes one file per site, beside this build's other
+  // outputs rather than under .next/bundles, which is uploaded:
+  //
+  //   .next/vite-manifests/<BUILD_ID>-<site>.json
+  //   { "outDir": "<the Vite build's build.outDir, relative to .next/bundles>",
+  //     "manifest": <the build's .vite/manifest.json, verbatim> }
+  //
+  // outDir is where the manifest's file names start, so a URL is publicPath,
+  // outDir, then the file. The build is the one place that says where its
+  // output lives. Because the name carries BUILD_ID, a file an earlier build
+  // left in .next is not read. No file means the site has no Vite pages,
+  // unless the caller passed `vite: true`, which requires the file.
+  /** @returns {ViteManifestFile | undefined} */
+  readViteManifest (buildId, required) {
+    const site = process.env.SITE || 'default'
+    const path = join(this.dir, '.next', 'vite-manifests', `${buildId}-${site}.json`)
+    if (!fs.existsSync(path)) {
+      if (required) {
+        throw new Error(`The vite option is true, but there is no Vite manifest at ${path}`)
+      }
+      return undefined
+    }
+
+    const { outDir, manifest } = JSON.parse(fs.readFileSync(path, 'utf8'))
+    const outDirIsUnderBundles = typeof outDir === 'string' &&
+      !posix.isAbsolute(outDir) &&
+      !outDir.split('/').includes('..')
+    if (!outDirIsUnderBundles || typeof manifest !== 'object' || manifest === null) {
+      throw new Error(
+        `${path} must be { outDir, manifest }: outDir is the Vite build's ` +
+        'build.outDir relative to .next/bundles, manifest is its .vite/manifest.json'
+      )
+    }
+
+    validateViteChunks(path, manifest)
+    return { outDir, manifest }
+  }
+
   async getCompilationError () {
     if (!this.hotReloader) return
 
@@ -101,5 +148,57 @@ export default class Server {
 
     // Return the very first error we found.
     return Array.from(errors.values())[0][0]
+  }
+}
+
+/**
+ * The file a site's Vite build writes and the server reads at startup.
+ * @typedef {object} ViteManifestFile
+ * @property {string} outDir Vite's `build.outDir`, relative to .next/bundles,
+ *   with no `..` segment.
+ * @property {Object<string, ViteManifestChunk>} manifest Vite's
+ *   .vite/manifest.json, unchanged.
+ */
+
+/**
+ * The fields of Vite's `ManifestChunk` type that the document reads.
+ * @typedef {object} ViteManifestChunk
+ * @property {string} file Output file, relative to outDir.
+ * @property {string} [name] For an entry, the page's input name, `pages/<route>`.
+ * @property {boolean} [isEntry]
+ * @property {string[]} [css] Stylesheets, relative to outDir.
+ * @property {string[]} [imports] Keys of the chunks it imports statically.
+ */
+
+// The keys of a chunk the document dereferences: `file`, `css`, and `imports`,
+// each of which names another chunk the document follows. A chunk that breaks
+// this would crash a page's render, so the server refuses it at startup.
+function validateViteChunks (path, manifest) {
+  const fail = (key, problem) => {
+    throw new Error(`${path}: manifest chunk ${JSON.stringify(key)} ${problem}`)
+  }
+  const isStringArray = (value) =>
+    Array.isArray(value) && value.every((item) => typeof item === 'string')
+
+  for (const [key, chunk] of Object.entries(manifest)) {
+    if (typeof chunk !== 'object' || chunk === null) {
+      fail(key, 'is not an object')
+    }
+    if (typeof chunk.file !== 'string') {
+      fail(key, 'has no string `file`')
+    }
+    if (chunk.css !== undefined && !isStringArray(chunk.css)) {
+      fail(key, 'has a `css` that is not an array of strings')
+    }
+    if (chunk.imports !== undefined) {
+      if (!isStringArray(chunk.imports)) {
+        fail(key, 'has an `imports` that is not an array of strings')
+      }
+      for (const imported of chunk.imports) {
+        if (!Object.prototype.hasOwnProperty.call(manifest, imported)) {
+          fail(key, `imports ${JSON.stringify(imported)}, which is not a key in the manifest`)
+        }
+      }
+    }
   }
 }
