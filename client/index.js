@@ -8,7 +8,14 @@ import { hydrateRoot } from 'react-dom/client'
 
 const { props, err, pathname, query } = __NEXT_DATA__
 
-__webpack_public_path__ = __NEXT_DATA__.publicPath; // eslint-disable-line
+// Tell webpack's runtime where to fetch chunks from: the same publicPath the
+// document builds every script URL from. The name exists only inside a webpack
+// bundle, so anywhere else, such as under Jest, assigning it throws a
+// ReferenceError. webpack folds the typeof to a constant, so its builds still
+// assign.
+if (typeof __webpack_public_path__ !== 'undefined') { // eslint-disable-line
+  __webpack_public_path__ = __NEXT_DATA__.publicPath; // eslint-disable-line
+}
 
 const asPath = getURL()
 
