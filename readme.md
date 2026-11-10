@@ -55,6 +55,12 @@ Note: you'll have to change it back to `node_modules` if you want to rebuild it
 
 This package supports React 16 (`^16.14.0`) only. Supporting React 18 needs a `hydrateRoot`/`createRoot` path and a new major release.
 
+## CI credentials: `NPM_TOKEN`
+
+CI installs private `@healthline/*` packages with an npm token from the repository secret `NPM_TOKEN`. It should be a read-only token for `@healthline` packages.
+
+If CI fails at Install Packages with `YN0035 ... Package not found (404)`, npm rejected the token: it expired, was revoked, or lost access. With `npmAuthToken ... got object`, the secret is missing or empty. Either way, someone with access to the `healthline` npm org replaces the secret with a new read-only granular token, then re-runs CI.
+
 ## Publishing to [@healthline/next](https://www.npmjs.com/package/@healthline/next)
 
 Releases are published from a terminal. This repository is public, so no workflow here holds a token that can publish. You need:
