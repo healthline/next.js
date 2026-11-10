@@ -114,6 +114,7 @@ export default class Server {
   // output lives. Because the name carries BUILD_ID, a file an earlier build
   // left in .next is not read. No file means the site has no Vite pages,
   // unless the caller passed `vite: true`, which requires the file.
+  /** @returns {ViteManifestFile | undefined} */
   readViteManifest (buildId, required) {
     const site = process.env.SITE || 'default'
     const path = join(this.dir, '.next', 'vite-manifests', `${buildId}-${site}.json`)
@@ -149,6 +150,25 @@ export default class Server {
     return Array.from(errors.values())[0][0]
   }
 }
+
+/**
+ * The file a site's Vite build writes and the server reads at startup.
+ * @typedef {object} ViteManifestFile
+ * @property {string} outDir Vite's `build.outDir`, relative to .next/bundles,
+ *   with no `..` segment.
+ * @property {Object<string, ViteManifestChunk>} manifest Vite's
+ *   .vite/manifest.json, unchanged.
+ */
+
+/**
+ * The fields of Vite's `ManifestChunk` type that the document reads.
+ * @typedef {object} ViteManifestChunk
+ * @property {string} file Output file, relative to outDir.
+ * @property {string} [name] For an entry, the page's input name, `pages/<route>`.
+ * @property {boolean} [isEntry]
+ * @property {string[]} [css] Stylesheets, relative to outDir.
+ * @property {string[]} [imports] Keys of the chunks it imports statically.
+ */
 
 // The keys of a chunk the document dereferences: `file`, `css`, and `imports`,
 // each of which names another chunk the document follows. A chunk that breaks

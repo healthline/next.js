@@ -372,7 +372,8 @@ describe("the site's Vite manifest, as the server loads it at startup", () => {
   it.each([
     ['is not an object', null],
     ['has no file', { name: 'x' }],
-    ['has a css list holding a non-string', { file: 'x.js', css: [1] }]
+    ['has a css list holding a non-string', { file: 'x.js', css: [1] }],
+    ['has an imports that is not a list', { file: 'x.js', imports: 5 }]
   ])('refuses to start when a chunk %s, naming the file and the chunk', (_, chunk) => {
     const dir = buildDirectory({ viteManifests: { 'build-1-hl.json': manifestWithChunk(chunk) } })
     const start = () => viteManifestAtStartup(dir)
