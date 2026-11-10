@@ -27,9 +27,8 @@ jobs:
         with:
           node_auth_token: ${{ secrets.NPM_TOKEN }}
 
-      # Build first: test/output-dependencies.test.js reads the built node/ and
-      # browser/ trees, and the build fails on a missing build dependency that
-      # lint and tests do not catch.
+      # Build first: the tests check the built package, and only the build
+      # catches a missing build dependency.
       - run: yarn build
 
       - run: yarn lint
