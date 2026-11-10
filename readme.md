@@ -44,6 +44,10 @@ This creates `~/.yarnrc.yml` with your auth token.
 
 Note: you'll have to change it back to `node_modules` if you want to rebuild it
 
+## Supported React versions
+
+This package supports React 16 (`^16.14.0`) only. Supporting React 18 needs a `hydrateRoot`/`createRoot` path and a new major release.
+
 ## Publishing to [@healthline/next](https://www.npmjs.com/package/@healthline/next)
 
 ### Steps to Publish:
