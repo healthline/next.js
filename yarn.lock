@@ -1338,7 +1338,7 @@ __metadata:
     babel-eslint: "npm:10.0.3"
     del: "npm:^5.1.0"
     htmlescape: "npm:^1.1.1"
-    husky: "npm:>=7"
+    husky: "npm:^9.1.7"
     lint-staged: "npm:>=10"
     minimist: "npm:1.2.7"
     mitt: "npm:^1.2.0"
@@ -4677,7 +4677,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"husky@npm:>=7":
+"husky@npm:^9.1.7":
   version: 9.1.7
   resolution: "husky@npm:9.1.7"
   bin:

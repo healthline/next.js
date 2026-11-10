@@ -31,6 +31,7 @@
     "build:package": "NODE_OPTIONS=--openssl-legacy-provider node -e 'require(`@healthline/six-million/build-package`)'",
     "release": "yarn build",
     "release:tag": "./release.sh",
+    "postinstall": "husky",
     "pretest": "yarn lint",
     "lint": "standard 'bin/*' 'client/**/*.js' 'examples/**/*.js' 'lib/**/*.js' 'server/**/*.js' 'test/**/*.js'",
     "prepublish": "yarn release",
@@ -60,7 +61,7 @@
   "devDependencies": {
     "@healthline/six-million": "~8.2.1",
     "babel-eslint": "10.0.3",
-    "husky": ">=7",
+    "husky": "^9.1.7",
     "lint-staged": ">=10",
     "node-notifier": "6.0.0",
     "pinst": ">=2",
