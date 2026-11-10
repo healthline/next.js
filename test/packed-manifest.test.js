@@ -1,23 +1,7 @@
-// What the tarball's `scripts` say decides whether a consumer's install runs
-// this package's dev-only hook installer. `postinstall` is a script both Yarn
-// and npm run for dependencies, so leaving it in the tarball would make every
-// consumer's install try to write husky hooks into their checkout. The only
-// thing preventing that is pinst: `prepack` runs `pinst --disable`, which
-// renames the script to `_postinstall` in package.json, and `postpack` runs
-// `pinst --enable`, which renames it back.
-//
-// That wiring rots silently: Yarn never runs `prepublishOnly` or
-// `postpublish`, so the rename has to sit on `prepack` and `postpack`.
-//
-// So the claim here is made against a real tarball rather than against the
-// manifest: pack the package the way a publish would, read the manifest out
-// of the tarball, and check the working manifest is exactly as it was
-// afterwards. Reading `package.json` alone could not fail, because the rename
-// only exists between prepack and postpack.
-//
-// `npm pack --dry-run --json` would be cheaper and would prove nothing: it
-// reports the file list without running Yarn's pack lifecycle, so pinst never
-// runs and the manifest it reports is the working one.
+// Packs the package the way a publish does and reads the real tarball, because
+// what it claims exists only there: the files that ship, and the `scripts`
+// pinst rewrites between prepack and postpack. Reading package.json, or
+// `npm pack --dry-run` (which skips Yarn's pack lifecycle), could not fail.
 
 const fs = require('fs')
 const os = require('os')
@@ -27,7 +11,7 @@ const { spawnSync } = require('child_process')
 const packageRoot = path.join(__dirname, '..')
 const manifestPath = path.join(packageRoot, 'package.json')
 
-// Scratch goes to the system temp directory, never into the checkout, and the tarball is large enough that leaving it behind matters.
+// Outside the checkout, and removed after the suite.
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'next-packed-manifest-'))
 const tarball = path.join(scratch, 'packed.tgz')
 
@@ -56,7 +40,40 @@ const readPackedManifest = () => {
   return JSON.parse(extract.stdout)
 }
 
-describe('the packed manifest', () => {
+// Every file in the tarball, relative to its `package/` root.
+const readPackedFiles = () => {
+  const list = spawnSync('tar', ['-tzf', tarball], { encoding: 'utf8' })
+  if (list.status !== 0) {
+    throw new Error(`could not list ${tarball}: tar exited ${list.status}`)
+  }
+  return new Set(
+    list.stdout.split('\n').filter(Boolean).map((file) => file.replace(/^package\//, ''))
+  )
+}
+
+// The files a consumer loads through the package's own entry points: each
+// `bin` command and the Babel preset (`@healthline/next/babel`), what the
+// commands require relatively, and each `@healthline/next/...` target the
+// preset aliases `next/*` to.
+const filesTheEntryPointsLoad = () => {
+  const manifest = JSON.parse(manifestBefore)
+  const binFiles = Object.values(manifest.bin).map((file) => path.posix.normalize(file))
+  const entryFiles = [...binFiles, 'babel.js']
+
+  const required = binFiles.flatMap((file) => {
+    const source = fs.readFileSync(path.join(packageRoot, file), 'utf8')
+    return [...source.matchAll(/require\(\s*'(\.\.?\/[^']+)'\s*\)/g)]
+      .map(([, specifier]) => path.posix.join(path.posix.dirname(file), specifier))
+  })
+
+  const babelSource = fs.readFileSync(path.join(packageRoot, 'babel.js'), 'utf8')
+  const aliased = [...babelSource.matchAll(new RegExp(`'${manifest.name}/([^']+)'`, 'g'))]
+    .map(([, target]) => target)
+
+  return { entryFiles, modules: [...new Set([...required, ...aliased])] }
+}
+
+describe('the packed package', () => {
   afterAll(() => {
     fs.rmSync(scratch, { recursive: true, force: true })
   })
@@ -76,6 +93,20 @@ describe('the packed manifest', () => {
       stderr: ''
     })
     expect(fs.existsSync(tarball)).toBe(true)
+  })
+
+  it('contains every file its entry points load', () => {
+    const packed = readPackedFiles()
+    const { entryFiles, modules } = filesTheEntryPointsLoad()
+
+    // A module specifier resolves to `<path>.js` or `<path>/index.js`.
+    const missing = [
+      ...entryFiles.filter((file) => !packed.has(file)),
+      ...modules.filter((module) => !packed.has(`${module}.js`) && !packed.has(`${module}/index.js`))
+    ]
+
+    expect(modules.length).toBeGreaterThan(0)
+    expect(missing).toEqual([])
   })
 
   it('runs no install script in a consumer', () => {
