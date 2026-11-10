@@ -52,7 +52,7 @@ This package supports React 16 (`^16.14.0`) only. Supporting React 18 needs a `h
 
 ### Steps to Publish:
 
-1. **Access Permissions**: Ensure you have the rights to publish to `@healthline/next` on npm and push tags to the repository.
+1. **Access Permissions**: Ensure you have the rights to push tags to the repository. The publish workflow runs in the `publishing` GitHub environment, which requires approval from one of its configured reviewers other than the person who pushed the tag. The run waits in the Actions UI until someone approves it.
 
 2. **Create Release Tag** (using [Semantic Versioning](https://semver.org/)):
 
@@ -76,3 +76,12 @@ The GitHub Actions workflow will automatically:
 - Set the package version from the tag
 - Publish to npm
 - Create a GitHub release with auto-generated release notes
+
+### Credentials: `NPM_TOKEN`
+
+Both workflows install private `@healthline/*` packages, so both read an npm token from a secret named `NPM_TOKEN`, through `.github/actions/env-setup`.
+
+- **The repository secret**, used by `ci.yml`, should be a read-only token for `@healthline` packages.
+- **The `publishing` environment's secret**, used by `publish.yml`, must be a separate token that can publish `@healthline/next`. It overrides the repository secret, so CI never holds the publish token. Without it, `publish.yml` gets the read-only token and the publish step fails.
+
+**If a workflow fails at Install Packages** with `YN0035 ... Package not found (404)` on a private package, npm rejected the token: it expired, was revoked, or lost access. If it fails with `npmAuthToken ... got object`, the secret is missing or empty. Either way, a maintainer with access to the `healthline` npm org creates a new granular access token with the same scope, replaces the secret that workflow reads, and re-runs it.
