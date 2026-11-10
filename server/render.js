@@ -66,7 +66,7 @@ export async function doPageRender (req, res, pathname, query, initialProps, {
   }
 }
 
-export async function doDocRender (page, initialProps, { amp, dev, dir, publicPath, entrypoints, hotReloader, buildId }) {
+export async function doDocRender (page, initialProps, { amp, dev, dir, publicPath, entrypoints, viteManifest, hotReloader, buildId }) {
   const pageDir = join(dir, '.next', 'server', 'pages')
 
   let Document = require(join(pageDir, amp ? '_amp' : '_document'))
@@ -100,7 +100,10 @@ export async function doDocRender (page, initialProps, { amp, dev, dir, publicPa
         return prev
       }, {}),
     dev,
-    ...docProps
+    ...docProps,
+    // After docProps, so a Document's getInitialProps cannot replace the
+    // manifest the server read at startup.
+    viteManifest
   })
 
   return '<!DOCTYPE html>' + renderToStaticMarkup(doc)
