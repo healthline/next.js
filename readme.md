@@ -51,10 +51,6 @@ yarn install
 
 Note: you'll have to change it back to `node_modules` if you want to rebuild it
 
-## Supported React versions
-
-This package supports React 16 (`^16.14.0`) only. Supporting React 18 needs a `hydrateRoot`/`createRoot` path and a new major release.
-
 ## CI credentials: `NPM_TOKEN`
 
 CI installs private `@healthline/*` packages with an npm token from the repository secret `NPM_TOKEN`. It should be a read-only token for `@healthline` packages.

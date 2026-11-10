@@ -8,11 +8,8 @@ import { getURL } from '../lib/url'
 
 const { props, err, pathname, query } = __NEXT_DATA__
 
-// Tell webpack's runtime where to fetch chunks from: the same publicPath the
-// document builds every script URL from. The name exists only inside a webpack
-// bundle, so anywhere else, such as under Jest, assigning it throws a
-// ReferenceError. webpack folds the typeof to a constant, so its builds still
-// assign.
+// The name exists only inside a webpack bundle; assigning it anywhere else,
+// such as under Jest, throws. webpack folds the typeof to a constant.
 if (typeof __webpack_public_path__ !== 'undefined') { // eslint-disable-line
   __webpack_public_path__ = __NEXT_DATA__.publicPath; // eslint-disable-line
 }
@@ -131,8 +128,8 @@ export function renderError (error) {
   })
 }
 
-// The first render hydrates the server's markup, reusing its DOM nodes. Later
-// renders, and a first render into an empty container, render normally.
+// Hydrating an empty container warns in React 16, so a first render with no
+// server markup renders instead.
 let isInitialRender = true
 function renderReactElement (reactEl, domEl) {
   // Wrap page in app-level enhancer, if defined

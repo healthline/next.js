@@ -1,5 +1,5 @@
-// Jest configuration for this package. It adds no Babel configuration file:
-// the preset is referenced inline.
+// The Babel options live here rather than in a babel.config.js, because the
+// package build would read that file too and change what ships.
 
 const transform = {
   '^.+\\.js$': [
