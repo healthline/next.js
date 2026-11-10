@@ -30,7 +30,6 @@
     "build": "yarn build:package",
     "build:package": "NODE_OPTIONS=--openssl-legacy-provider node -e 'require(`@healthline/six-million/build-package`)'",
     "release": "yarn build",
-    "release:tag": "./release.sh",
     "pretest": "yarn lint",
     "lint": "standard 'bin/*' 'client/**/*.js' 'examples/**/*.js' 'lib/**/*.js' 'server/**/*.js' 'test/**/*.js'",
     "prepublish": "yarn release",
