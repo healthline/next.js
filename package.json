@@ -25,13 +25,16 @@
     "clean:build": "node -e 'for (const dir of [`node`, `browser`]) require(`fs`).rmSync(dir, { recursive: true, force: true })'",
     "build:package": "NODE_OPTIONS=--openssl-legacy-provider node -e 'require(`@healthline/six-million/build-package`)'",
     "postinstall": "husky",
-    "pretest": "yarn lint",
-    "lint": "standard 'bin/*' 'client/**/*.js' 'examples/**/*.js' 'lib/**/*.js' 'server/**/*.js' 'test/**/*.js'",
+    "test": "jest --selectProjects node browser",
+    "lint": "standard 'bin/*' 'client/**/*.js' 'examples/**/*.js' 'jest.config.js' 'lib/**/*.js' 'server/**/*.js' 'test/**/*.js'",
     "prepack": "yarn build && pinst --disable",
     "postpack": "pinst --enable"
   },
   "standard": {
     "parser": "babel-eslint",
+    "env": [
+      "jest"
+    ],
     "ignore": [
       "**/node_modules/**",
       "**/examples/**/lib/**"
@@ -57,20 +60,20 @@
     "react-dom": "^16.14.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.25.7",
     "@healthline/six-million": "~8.2.1",
     "babel-eslint": "10.0.3",
+    "babel-jest": "^29",
+    "eslint": "~5.4.0",
     "husky": "^9.1.7",
+    "jest": "^29",
+    "jest-environment-jsdom": "^29",
     "lint-staged": ">=10",
-    "node-notifier": "6.0.0",
+    "node-notifier": "^10.0.1",
     "pinst": ">=2",
     "react": "16.14.0",
     "react-dom": "16.14.0",
+    "semver": "^7.8.5",
     "standard": "12.0.1"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "roots": [
-      "test/"
-    ]
   }
 }
