@@ -1,9 +1,10 @@
 /* global document */
 
-// React 16 does not throw on a hydration mismatch: it keeps the server's nodes
-// and warns through console.error. So the first-render tests check that
-// console.error stayed silent, and the adoption test also checks that the
-// server's node survived.
+// React 16 does not throw on a hydration mismatch: it warns through
+// console.error and patches mismatched text, not attributes. So the
+// first-render tests check that console.error stayed silent, and the adoption
+// test also checks that the server's node survived and that React attached to
+// it.
 //
 // The entry reads __NEXT_DATA__ and #__next as its module body runs, so both
 // are set up before it is required. It is required relatively because the
@@ -35,13 +36,15 @@ const bootClient = async ({ containerHTML }) => {
 
   // The page renders the markup the server sent for the initial query, and a
   // different one once the router reports a new query.
+  const pageClicks = jest.fn()
   const Page = ({ url, label }) =>
-    createElement('span', { id: 'marker' }, `${label}:${url.query.n || '1'}`)
-  Page.getInitialProps = () => ({})
+    createElement('span', { id: 'marker', onClick: pageClicks }, `${label}:${url.query.n || '1'}`)
 
+  // renderError calls .then on this. A page that throws then gets this error
+  // page, and the test fails on the page's error instead of timing out.
   const ErrorPage = () =>
     createElement('span', { id: 'error-marker' }, 'error page')
-  ErrorPage.getInitialProps = () => ({})
+  ErrorPage.getInitialProps = async () => ({})
 
   registerPage('/', () => ({ page: Page }))
   registerPage('/_error', () => ({ page: ErrorPage }))
@@ -59,10 +62,10 @@ const bootClient = async ({ containerHTML }) => {
   await client.default()
   await firstRender
 
-  return { Router, nextRender, serverRenderedNode }
+  return { Router, nextRender, serverRenderedNode, pageClicks }
 }
 
-const errorPageMarkup = () => document.getElementById('error-marker')
+const errorPageNode = () => document.getElementById('error-marker')
 
 describe('the client entry on React 16', () => {
   let consoleError
@@ -76,38 +79,46 @@ describe('the client entry on React 16', () => {
   })
 
   it('adopts the server-rendered markup instead of replacing it', async () => {
-    const { serverRenderedNode } = await bootClient({
+    const { serverRenderedNode, pageClicks } = await bootClient({
       containerHTML: PAGE_MARKUP
     })
 
+    // First, so a page that threw fails here and shows its error.
+    expect(consoleError).not.toHaveBeenCalled()
     // A fresh render would have discarded this node and built a new one.
     expect(document.getElementById('marker')).toBe(serverRenderedNode)
     expect(serverRenderedNode.textContent).toBe('marker:1')
-    expect(errorPageMarkup()).toBeNull()
-    expect(consoleError).not.toHaveBeenCalled()
+    expect(errorPageNode()).toBeNull()
+
+    // An inert server node passes every check above; only a hydrated one runs the handler.
+    serverRenderedNode.click()
+    expect(pageClicks).toHaveBeenCalledTimes(1)
   })
 
-  it('re-renders the page when the router changes route', async () => {
+  it('re-renders the page with the new query after a shallow push', async () => {
     const { Router, nextRender } = await bootClient({
       containerHTML: PAGE_MARKUP
     })
 
     const rendered = nextRender()
+    // This router supports only a shallow change within the current page; any
+    // other push throws ENOTIMPL.
     Router.push({ pathname: '/', query: { n: '2' } }, '/?n=2', { shallow: true })
     await rendered
 
     expect(document.getElementById('marker').textContent).toBe('marker:2')
-    expect(errorPageMarkup()).toBeNull()
+    expect(errorPageNode()).toBeNull()
   })
 
   it('renders the page into an empty container', async () => {
     // Hydrating an empty container would also build the tree, but warns.
     await bootClient({ containerHTML: '' })
 
+    // First, so a page that threw fails here and shows its error.
+    expect(consoleError).not.toHaveBeenCalled()
     const rendered = document.getElementById('marker')
     expect(rendered).not.toBeNull()
     expect(rendered.textContent).toBe('marker:1')
-    expect(errorPageMarkup()).toBeNull()
-    expect(consoleError).not.toHaveBeenCalled()
+    expect(errorPageNode()).toBeNull()
   })
 })

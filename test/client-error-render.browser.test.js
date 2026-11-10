@@ -25,7 +25,7 @@ describe('the client entry, rendering an error page over a live app', () => {
     consoleError.mockRestore()
   })
 
-  it('unmounts the app that threw, renders the error page, and reports the error', async () => {
+  it('unmounts the mounted page before rendering the error page, and reports the error it was handed', async () => {
     global.__NEXT_DATA__ = {
       props: {},
       err: null,
@@ -55,13 +55,19 @@ describe('the client entry, rendering an error page over a live app', () => {
         )
       }
     }
-    // renderError awaits this, so it has to be a thenable.
+    // renderError calls .then on this, so it has to return a thenable.
     Page.getInitialProps = async ({ err } = {}) => ({ err })
 
     registerPage('/', () => ({ page: Page }))
     registerPage('/_error', () => ({ page: Page }))
 
+    const firstRender = new Promise((resolve) => {
+      client.emitter.on('after-reactdom-render', resolve)
+    })
     await client.default()
+    await firstRender
+    // renderError has a mounted page to tear down only once the first render is done.
+    expect(document.getElementById('__next').innerHTML).toBe('<span id="page">page</span>')
     const pageNode = document.getElementById('page')
 
     await client.renderError(new Error(ERROR_MESSAGE))
