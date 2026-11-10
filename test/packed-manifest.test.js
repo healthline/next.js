@@ -83,7 +83,7 @@ describe('the packed package', () => {
     if (pack.error) {
       throw new Error(
         `\`yarn pack\` could not be run (${pack.error.code}); this test needs ` +
-          'yarn on PATH. Run it with `yarn jest --selectProjects pack --runInBand`.'
+          'yarn on PATH. Run it with `yarn test:pack`.'
       )
     }
 

@@ -25,8 +25,9 @@
     "clean:build": "node -e 'for (const dir of [`node`, `browser`]) require(`fs`).rmSync(dir, { recursive: true, force: true })'",
     "build:package": "NODE_OPTIONS=--openssl-legacy-provider node -e 'require(`@healthline/six-million/build-package`)'",
     "postinstall": "husky",
-    "test": "jest --selectProjects node browser",
-    "lint": "standard 'bin/*' 'client/**/*.js' 'examples/**/*.js' 'jest.config.js' 'lib/**/*.js' 'server/**/*.js' 'test/**/*.js'",
+    "test": "jest",
+    "test:pack": "jest --config jest.pack.config.js --runInBand",
+    "lint": "standard 'bin/*' 'client/**/*.js' 'examples/**/*.js' 'jest.*.js' 'lib/**/*.js' 'server/**/*.js' 'test/**/*.js'",
     "prepack": "yarn build && pinst --disable",
     "postpack": "pinst --enable"
   },
