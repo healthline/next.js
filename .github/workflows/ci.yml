@@ -7,7 +7,7 @@ on:
   pull_request:
   workflow_dispatch:
 
-# CI only reads the repository, so its token can do no more.
+# Grant a write permission only to a job that needs it.
 permissions:
   contents: read
 
@@ -28,12 +28,10 @@ jobs:
           node_auth_token: ${{ secrets.NPM_TOKEN }}
 
       # Build first: test/output-dependencies.test.js reads the built node/ and
-      # browser/ trees, and the build fails on a missing build dependency
-      # (node-notifier, once) that lint and tests do not catch.
+      # browser/ trees, and the build fails on a missing build dependency that
+      # lint and tests do not catch.
       - run: yarn build
 
-      # Yarn 4 runs no pre/post hooks around a script like `test`, so lint
-      # has its own step.
       - run: yarn lint
 
       - run: yarn test --ci
