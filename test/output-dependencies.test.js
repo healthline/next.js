@@ -1,15 +1,7 @@
-// The published files import packages the sources never name: Babel's
-// transform-runtime rewrites helpers into `@babel/runtime/helpers/*`, which a
-// consumer resolves from its own node_modules. In this repository hoisting
-// resolves them whichever list declares them, so a declaration moved back to
-// devDependencies breaks consumers and nothing else.
-//
-// One claim, made without an install: every bare package specifier in the
-// published files is declared in dependencies or peerDependencies at a range
-// the installed version satisfies. It is not a dependency linter. Relative
-// specifiers, Node builtins and the package's own name are not
-// consumer-resolved, so they are skipped. The published files are the whole
-// `files` list, because that list is the tarball.
+// Every package the published files import is declared in dependencies or
+// peerDependencies, at a range the installed version satisfies. Babel adds
+// imports the sources never name (`@babel/runtime/helpers/*`), and hoisting
+// hides a missing declaration everywhere except a consumer's install.
 
 const fs = require('fs')
 const path = require('path')
@@ -84,8 +76,10 @@ const packageNameOf = (specifier) => {
   return specifier.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0]
 }
 
+// Each package name the files import, with the first file that imports it, so
+// a failure says where to look.
 const collectPackageNames = (files) => {
-  const names = new Set()
+  const importers = new Map()
 
   for (const file of files) {
     const source = fs.readFileSync(file, 'utf8')
@@ -98,12 +92,12 @@ const collectPackageNames = (files) => {
         if (builtins.has(name) || name === manifest.name) continue
         if (exemptions.has(name)) continue
 
-        names.add(name)
+        if (!importers.has(name)) importers.set(name, path.relative(packageRoot, file))
       }
     }
   }
 
-  return [...names].sort()
+  return importers
 }
 
 const builtTreesArePresent = outputDirectories.every((directory) =>
@@ -126,13 +120,21 @@ describeSurface(
   'every bare specifier in the published surface (skipped when node/ and browser/ are absent: run yarn build)',
   () => {
     // Jest evaluates a skipped describe's body, so the guard is repeated.
-    const names = builtTreesArePresent
+    const importers = builtTreesArePresent
       ? collectPackageNames(publishedEntries.flatMap(javascriptFilesIn))
-      : []
+      : new Map()
+    const names = [...importers.keys()].sort()
 
-    it('is a specifier the sweep actually found', () => {
-      // A sweep that matched nothing would pass every claim below silently.
-      expect(names.length).toBeGreaterThan(0)
+    it('finds a package through each kind of import: from, require and require.resolve', () => {
+      // A pattern that stops matching drops its packages, and the claim below
+      // then passes for them silently. @babel/runtime appears only in
+      // browser/'s `from` imports, htmlescape only in node/'s `require` calls,
+      // and babel-plugin-module-resolver only in babel.js's `require.resolve`.
+      // If one of them is removed on purpose, name another package that only
+      // that pattern finds.
+      expect(names).toEqual(
+        expect.arrayContaining(['@babel/runtime', 'htmlescape', 'babel-plugin-module-resolver'])
+      )
     })
 
     it('is declared for consumers at a range the installed version satisfies', () => {
@@ -145,7 +147,7 @@ describeSurface(
           (manifest.peerDependencies && manifest.peerDependencies[name])
 
         if (!range) {
-          undeclared.push(name)
+          undeclared.push(`${name}, imported by ${importers.get(name)}`)
           continue
         }
 
@@ -155,6 +157,7 @@ describeSurface(
           name,
           'package.json'
         )
+        // Not installed here, so there is no version to compare.
         if (!fs.existsSync(installedManifest)) continue
 
         const { version } = JSON.parse(fs.readFileSync(installedManifest, 'utf8'))

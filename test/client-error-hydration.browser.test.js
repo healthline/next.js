@@ -34,10 +34,6 @@ describe('the client entry, handed an error and its markup by the server', () =>
     // from a replacement.
     const serverRenderedNode = document.getElementById('error')
 
-    // React 16 warns about a hydration mismatch once per react-dom instance, so
-    // this boot needs a fresh module registry for its warning to be observable.
-    jest.resetModules()
-
     const { createElement } = require('react')
     const { registerPage } = require('../lib/page-loader')
     // `next/client` is unreachable through its alias under Jest, so the entry
@@ -47,8 +43,9 @@ describe('the client entry, handed an error and its markup by the server', () =>
     const Page = () => createElement('span', { id: 'page' }, 'page')
     Page.getInitialProps = async () => ({})
 
+    const errorPageClicks = jest.fn()
     const ErrorPage = ({ statusCode }) =>
-      createElement('span', { id: 'error' }, `error:${statusCode}`)
+      createElement('span', { id: 'error', onClick: errorPageClicks }, `error:${statusCode}`)
     ErrorPage.getInitialProps = async ({ err }) => ({
       statusCode: err.statusCode
     })
@@ -69,5 +66,9 @@ describe('the client entry, handed an error and its markup by the server', () =>
     expect(serverRenderedNode.textContent).toBe(`error:${STATUS_CODE}`)
     expect(document.getElementById('page')).toBeNull()
     expect(consoleError.mock.calls).toEqual([[err]])
+
+    // An inert server node passes every check above; only a hydrated one runs the handler.
+    serverRenderedNode.click()
+    expect(errorPageClicks).toHaveBeenCalledTimes(1)
   })
 })

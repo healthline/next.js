@@ -1,7 +1,6 @@
-// Packs the package the way a publish does and reads the real tarball, because
-// what it claims exists only there: the files that ship, and the `scripts`
-// pinst rewrites between prepack and postpack. Reading package.json, or
-// `npm pack --dry-run` (which skips Yarn's pack lifecycle), could not fail.
+// Packs the package the way a publish does and reads the real tarball: only it
+// shows the files that ship and the `scripts` after pinst has edited them.
+// `npm pack --dry-run` skips Yarn's pack lifecycle, so it could not fail.
 
 const fs = require('fs')
 const os = require('os')
@@ -51,14 +50,14 @@ const readPackedFiles = () => {
   )
 }
 
-// The files a consumer loads through the package's own entry points: each
-// `bin` command and the Babel preset (`@healthline/next/babel`), what the
-// commands require relatively, and each `@healthline/next/...` target the
-// preset aliases `next/*` to.
+// `main`, each `bin` command and the Babel preset; the files the commands
+// require directly; and each `@healthline/next/...` target the preset aliases
+// `next/*` to. It does not follow imports any further. `modules` are
+// extensionless, each a `.js` file or a directory with an index.
 const filesTheEntryPointsLoad = () => {
   const manifest = JSON.parse(manifestBefore)
   const binFiles = Object.values(manifest.bin).map((file) => path.posix.normalize(file))
-  const entryFiles = [...binFiles, 'babel.js']
+  const entryFiles = [path.posix.normalize(manifest.main), ...binFiles, 'babel.js']
 
   const required = binFiles.flatMap((file) => {
     const source = fs.readFileSync(path.join(packageRoot, file), 'utf8')
@@ -84,18 +83,22 @@ describe('the packed package', () => {
     if (pack.error) {
       throw new Error(
         `\`yarn pack\` could not be run (${pack.error.code}); this test needs ` +
-          'yarn on PATH, which `yarn test` provides'
+          'yarn on PATH. Run it with `yarn jest --selectProjects pack --runInBand`.'
       )
     }
 
-    expect({ status: pack.status, stderr: (pack.stderr || '').trim() }).toEqual({
-      status: 0,
-      stderr: ''
-    })
+    // Yarn reports a failed lifecycle script on stdout, naming the log that holds
+    // the script's own output, so both streams are shown.
+    if (pack.status !== 0) {
+      throw new Error(
+        `\`yarn pack\` exited ${pack.status}.\n` +
+          `stdout:\n${pack.stdout}\nstderr:\n${pack.stderr}`
+      )
+    }
     expect(fs.existsSync(tarball)).toBe(true)
   })
 
-  it('contains every file its entry points load', () => {
+  it('contains the entry points, what the bin commands require, and the preset\'s alias targets', () => {
     const packed = readPackedFiles()
     const { entryFiles, modules } = filesTheEntryPointsLoad()
 
@@ -110,11 +113,13 @@ describe('the packed package', () => {
   })
 
   it('runs no install script in a consumer', () => {
-    const { scripts } = readPackedManifest()
+    const { scripts = {} } = readPackedManifest()
 
-    // npm runs `prepare` for a git-URL install.
-    expect(scripts.postinstall).toBeUndefined()
-    expect(scripts.prepare).toBeUndefined()
+    // npm runs the first three on every install, and `prepare` on a git-URL install.
+    const shippedInstallHooks = ['preinstall', 'install', 'postinstall', 'prepare']
+      .filter((hook) => hook in scripts)
+      .map((hook) => `${hook}: ${scripts[hook]}`)
+    expect(shippedInstallHooks).toEqual([])
   })
 
   it('leaves the working manifest exactly as it found it', () => {
