@@ -1,10 +1,10 @@
 /* global document */
 
-// React 16 does not throw on a hydration mismatch: it warns through
-// console.error and patches mismatched text, not attributes. So the
-// first-render tests check that console.error stayed silent, and the adoption
-// test also checks that the server's node survived and that React attached to
-// it.
+// React 16 does not throw on a hydration mismatch. It warns through
+// console.error, patches mismatched text but not attributes, and inserts or
+// deletes mismatched elements. So the first-render tests check that
+// console.error stayed silent, and the adoption test also checks that the
+// server's node survived and that React attached to it.
 //
 // The entry reads __NEXT_DATA__ and #__next as its module body runs, so both
 // are set up before it is required. It is required relatively because the

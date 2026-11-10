@@ -54,7 +54,7 @@ const readPackedFiles = () => {
 // require directly; and each `@healthline/next/...` target the preset aliases
 // `next/*` to. It does not follow imports any further. `modules` are
 // extensionless, each a `.js` file or a directory with an index.
-const filesTheEntryPointsLoad = () => {
+const filesTheEntryPointsName = () => {
   const manifest = JSON.parse(manifestBefore)
   const binFiles = Object.values(manifest.bin).map((file) => path.posix.normalize(file))
   const entryFiles = [path.posix.normalize(manifest.main), ...binFiles, 'babel.js']
@@ -100,7 +100,7 @@ describe('the packed package', () => {
 
   it('contains the entry points, what the bin commands require, and the preset\'s alias targets', () => {
     const packed = readPackedFiles()
-    const { entryFiles, modules } = filesTheEntryPointsLoad()
+    const { entryFiles, modules } = filesTheEntryPointsName()
 
     // A module specifier resolves to `<path>.js` or `<path>/index.js`.
     const missing = [

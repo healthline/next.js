@@ -1,5 +1,6 @@
-// Every package the published files import is declared in dependencies or
-// peerDependencies, at a range the installed version satisfies. Babel adds
+// Every package the published files import, apart from the exemptions below,
+// is declared in dependencies or peerDependencies, at a range the installed
+// version satisfies. Babel adds
 // imports the sources never name (`@babel/runtime/helpers/*`), and hoisting
 // hides a missing declaration everywhere except a consumer's install.
 
@@ -15,8 +16,7 @@ const manifest = require('../package.json')
 // that anchors each entry stripped: '/bin' -> 'bin'.
 const publishedEntries = manifest.files.map((entry) => entry.replace(/^\//, ''))
 
-// Written by `yarn build:package` and gitignored, so they are the only
-// published entries a checkout can legitimately lack.
+// The build writes these, so they exist only after `yarn build`.
 const outputDirectories = ['node', 'browser']
 
 const builtins = new Set(builtinModules)
@@ -56,13 +56,9 @@ const javascriptFilesIn = (entry) => {
 
   if (!fs.existsSync(full)) {
     throw new Error(
-      `${path.basename(__filename)} sweeps every entry of \`files\` in ` +
-        `package.json, and the entry \`${entry}\` is not in this checkout ` +
-        `(${full}). Only ${outputDirectories.join(' and ')} may ` +
-        'legitimately be absent, because `yarn build:package` writes them ' +
-        'and they are gitignored; run `yarn build`. Any other missing entry ' +
-        'is a broken checkout or a `files` list naming something that no ' +
-        'longer exists.'
+      `The \`files\` entry \`${entry}\` in package.json is not in this ` +
+        `checkout (${full}): the checkout is broken, or \`files\` names ` +
+        'something that no longer exists.'
     )
   }
 
@@ -100,29 +96,20 @@ const collectPackageNames = (files) => {
   return importers
 }
 
-const builtTreesArePresent = outputDirectories.every((directory) =>
-  fs.existsSync(path.join(packageRoot, directory))
+const missingOutput = outputDirectories.filter((directory) =>
+  !fs.existsSync(path.join(packageRoot, directory))
 )
-
-// Skipped when the built trees are absent, because a fresh clone has neither
-// until `yarn build` runs. CI builds before it tests, so there it fails. The
-// sweep is all-or-nothing: a partial surface would miss specifiers.
-if (process.env.CI && !builtTreesArePresent) {
+if (missingOutput.length) {
   throw new Error(
-    `${path.basename(__filename)} needs ${outputDirectories.join(' and ')}, ` +
-      'and CI runs `yarn build` before the tests, so their absence is a failure here'
+    `${path.basename(__filename)} checks the built package, and this checkout ` +
+      `has no ${missingOutput.join(' or ')} directory. Run \`yarn build\` first.`
   )
 }
 
-const describeSurface = builtTreesArePresent ? describe : describe.skip
-
-describeSurface(
-  'every bare specifier in the published surface (skipped when node/ and browser/ are absent: run yarn build)',
+describe(
+  'every bare specifier in the published surface',
   () => {
-    // Jest evaluates a skipped describe's body, so the guard is repeated.
-    const importers = builtTreesArePresent
-      ? collectPackageNames(publishedEntries.flatMap(javascriptFilesIn))
-      : new Map()
+    const importers = collectPackageNames(publishedEntries.flatMap(javascriptFilesIn))
     const names = [...importers.keys()].sort()
 
     it('finds a package through each kind of import: from, require and require.resolve', () => {
