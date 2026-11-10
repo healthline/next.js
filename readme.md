@@ -6,6 +6,10 @@ Minimialist version of Next.js. Not intended for external consumption.
 
 ## Setup
 
+### Install Node
+
+`.nvmrc` sets the Node version: `nvm install` or `fnm use` reads it, and so do the GitHub Actions workflows.
+
 ### Install Yarn via Corepack
 
 This project uses Yarn 4 managed via corepack. To set up:

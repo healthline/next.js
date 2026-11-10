@@ -133,10 +133,11 @@ runs:
       id: cache-node_modules
       with:
         path: node_modules
-        key: node_modules-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
+        # The .nvmrc hash leads both keys, so a Node change installs fresh
+        # instead of restoring node_modules built under the previous Node.
+        key: node_modules-${{ runner.os }}-node${{ hashFiles('.nvmrc') }}-${{ hashFiles('**/yarn.lock') }}
         restore-keys: |
-          node_modules-${{ runner.os }}-
-          node_modules-
+          node_modules-${{ runner.os }}-node${{ hashFiles('.nvmrc') }}-
 
     - name: Install Packages
       run: yarn install --immutable
