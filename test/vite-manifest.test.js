@@ -1,11 +1,10 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { JSDOM } from 'jsdom'
 import Document from '../server/document'
-import Server from '../server'
 import createServer from '../server/next'
 
 // A page the site's Vite build produced renders the way Vite's
@@ -20,11 +19,18 @@ const url = (file) => `${PUBLIC_PATH}${OUT_DIR}/${file}`
 
 // Shaped like the guide's example and like the homepage's real manifest: keys
 // are source paths or `_`-prefixed shared chunks, and a page's entry is found
-// by its `name`. The two imported chunks share a third, and the entry and one
-// shared chunk each import something only dynamically.
+// by its `name`. Another page's entry comes first, so the first entry is the
+// wrong one. The homepage's two imported chunks share a third, and its entry
+// and one shared chunk each import something only dynamically.
 const VITE_MANIFEST = {
   outDir: OUT_DIR,
   manifest: {
+    'client/vite-article.js': {
+      file: 'assets/pages/article-JJJJ.js',
+      name: 'pages/article',
+      src: 'client/vite-article.js',
+      isEntry: true
+    },
     'client/vite-home-page.js': {
       file: 'assets/pages/home-page-AAAA.js',
       name: 'pages/home-page',
@@ -64,7 +70,7 @@ const VITE_MANIFEST = {
   }
 }
 
-// Webpack still builds every page, the homepage included, while both toolchains build pages.
+// During the migration webpack still builds every page, the homepage included.
 const ENTRYPOINTS = {
   'pages/standard.js': {
     chunks: [
@@ -101,22 +107,21 @@ const renderDocument = ({ pathname, viteManifest }) =>
 
 const parse = (markup) => new JSDOM(markup).window.document
 
-// The URLs of the loading tags in a document, by kind, in document order, and
-// every script and link tag with its attributes. The markup is parsed as HTML,
-// so attribute order and quoting do not matter.
+// The URLs of a document's loading tags, by kind, in document order, and the
+// `src` of every script in document order (null for an inline script). The
+// markup is parsed as HTML, so attribute order and quoting do not matter.
 const loadingTags = (markup) => {
-  const tags = { moduleScripts: [], modulepreloads: [], stylesheets: [], preloads: [], elements: [] }
-  for (const element of parse(markup).querySelectorAll('script, link')) {
-    const tag = element.localName
-    const attrs = {}
-    for (const name of element.getAttributeNames()) attrs[name] = element.getAttribute(name)
-    tags.elements.push({ tag, ...attrs })
-    if (tag === 'script' && attrs.type === 'module' && attrs.src) tags.moduleScripts.push(attrs.src)
-    if (tag === 'link' && attrs.rel === 'modulepreload') tags.modulepreloads.push(attrs.href)
-    if (tag === 'link' && attrs.rel === 'stylesheet') tags.stylesheets.push(attrs.href)
-    if (tag === 'link' && attrs.rel === 'preload') tags.preloads.push(attrs.href)
+  const document = parse(markup)
+  const urls = (selector, attribute) =>
+    [...document.querySelectorAll(selector)].map((element) => element.getAttribute(attribute))
+
+  return {
+    moduleScripts: urls('script[type="module"][src]', 'src'),
+    modulepreloads: urls('link[rel="modulepreload"]', 'href'),
+    stylesheets: urls('link[rel="stylesheet"]', 'href'),
+    preloads: urls('link[rel="preload"]', 'href'),
+    scriptSources: urls('script', 'src')
   }
-  return tags
 }
 
 describe("a page the site's Vite build produced", () => {
@@ -130,21 +135,19 @@ describe("a page the site's Vite build produced", () => {
     expect(tags.moduleScripts).toEqual([url('assets/pages/home-page-AAAA.js')])
   })
 
-  it('preloads every chunk the entry imports statically, however deep, once each', () => {
-    // The guide's order: a chunk's own imports before the chunk.
-    expect(tags.modulepreloads).toEqual([
-      url('assets/shared-EEEE.js'),
+  it('preloads the chunks the entry imports statically, however deep, once each, and no others', () => {
+    // Sorted, because preload order changes nothing a browser does. The
+    // newsletter and form chunks are absent: the page imports them only
+    // dynamically, so they load when the page asks for them.
+    expect([...tags.modulepreloads].sort()).toEqual([
+      url('assets/footer-CCCC.js'),
       url('assets/header-BBBB.js'),
-      url('assets/footer-CCCC.js')
+      url('assets/shared-EEEE.js')
     ])
   })
 
-  it('does not preload what the page only imports dynamically', () => {
-    expect(tags.modulepreloads).not.toContain(url('assets/newsletter-GGGG.js'))
-    expect(tags.modulepreloads).not.toContain(url('assets/form-HHHH.js'))
-  })
-
   it("links the stylesheets of the entry and of the chunks it imports, the entry's first", () => {
+    // In order, because stylesheet order decides which rule wins.
     expect(tags.stylesheets).toEqual([
       url('assets/home-page-DDDD.css'),
       url('assets/shared-FFFF.css')
@@ -152,42 +155,33 @@ describe("a page the site's Vite build produced", () => {
   })
 
   // VITE-MIGRATION(webpack-deletion): Delete this test once no site builds pages with webpack.
-  it('gets none of the webpack tags, although webpack also built the page', () => {
+  it('gets no webpack preload links, although webpack also built the page', () => {
     expect(tags.preloads).toEqual([])
   })
 })
 
 // VITE-MIGRATION(webpack-deletion): Delete this describe once no site builds
-// pages with webpack. Move its __NEXT_DATA__ parse check into the Vite
-// describe first: every page renders that inline script.
+// pages with webpack. Move its __NEXT_DATA__ test into the Vite describe
+// first: every page renders that inline script.
 describe('a page only webpack built', () => {
   // Frontend serves every template not yet on Vite through webpack, so a Vite
   // manifest for the site's other pages must not change this page's markup.
   const render = (viteManifest) => renderDocument({ pathname: '/standard', viteManifest })
   const files = ENTRYPOINTS['pages/standard.js'].chunks.map(({ file }) => file)
 
-  it("preloads and then loads webpack's chunks for the page, after __NEXT_DATA__", () => {
-    const markup = render(undefined)
+  it("preloads and loads every webpack chunk of the page, in the build's order", () => {
+    const tags = loadingTags(render(undefined))
+    const chunkUrls = files.map((file) => `${PUBLIC_PATH}${file}`)
 
-    expect(loadingTags(markup).elements).toEqual([
-      ...files.map((file) => ({
-        tag: 'link',
-        rel: 'preload',
-        href: `${PUBLIC_PATH}${file}`,
-        as: 'script',
-        crossorigin: 'anonymous'
-      })),
-      { tag: 'script' },
-      ...files.map((file) => ({
-        tag: 'script',
-        type: 'module',
-        src: `${PUBLIC_PATH}${file}`,
-        crossorigin: 'anonymous',
-        async: ''
-      }))
-    ])
+    expect(tags.preloads).toEqual(chunkUrls)
+    expect(tags.moduleScripts).toEqual(chunkUrls)
+    // The inline __NEXT_DATA__ script comes before every chunk, because the
+    // client entry reads __NEXT_DATA__ as soon as it runs.
+    expect(tags.scriptSources).toEqual([null, ...chunkUrls])
+  })
 
-    const inlineScript = parse(markup).querySelector('script:not([src])').textContent
+  it('assigns only __NEXT_DATA__ in its inline script', () => {
+    const inlineScript = parse(render(undefined)).querySelector('script:not([src])').textContent
     expect(inlineScript).toMatch(/^__NEXT_DATA__=\{/)
     // JSON.parse throws on anything after the object, such as a second assignment.
     expect(JSON.parse(inlineScript.slice('__NEXT_DATA__='.length))).toEqual({
@@ -205,10 +199,25 @@ describe('a page only webpack built', () => {
   })
 })
 
-// doDocRender loads the consumer's document from the build's server tree, so
-// these write one into a scratch build directory.
+// Scratch build directories, removed after the suite.
+const scratchDirs = []
+const scratchDir = (prefix) => {
+  const dir = mkdtempSync(join(tmpdir(), prefix))
+  scratchDirs.push(dir)
+  return dir
+}
+
+afterAll(() => {
+  for (const dir of scratchDirs) {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// doDocRender loads the site's own document (its pages/_document.js, built
+// into .next/server/pages) from the build's server tree, so these write one
+// into a scratch build directory.
 const buildDirWithDocument = (source) => {
-  const dir = mkdtempSync(join(tmpdir(), 'next-vite-manifest-'))
+  const dir = scratchDir('next-vite-manifest-')
   const pageDir = join(dir, '.next', 'server', 'pages')
   mkdirSync(pageDir, { recursive: true })
   writeFileSync(join(pageDir, '_document.js'), source)
@@ -235,6 +244,10 @@ const docRender = (dir, pathname, viteManifest) => {
   })
 }
 
+// Each document's getInitialProps passes the whole page through. Document's
+// own returns only html, head and errorHtml, and doDocRender reads the
+// pathname that picks the page's tags from what getInitialProps returns.
+// Without the pass-through the render throws "No scripts found for undefined".
 describe("doDocRender, for a page the site's Vite build produced", () => {
   it("hands the document the site's Vite manifest, so the page loads its Vite entry", async () => {
     const dir = buildDirWithDocument(`
@@ -266,151 +279,148 @@ describe("doDocRender, for a page the site's Vite build produced", () => {
   })
 })
 
+// One build directory holds the builds of several sites (hl, mnt and others),
+// and SITE names the one this server serves. Startup reads that site's entry
+// points and Vite manifest. Set for every test in the file; only the tests
+// that start a server read it.
+const SITE = 'hl'
+let siteBefore
+
+beforeEach(() => {
+  siteBefore = process.env.SITE
+  process.env.SITE = SITE
+})
+
+afterEach(() => {
+  if (siteBefore === undefined) {
+    delete process.env.SITE
+  } else {
+    process.env.SITE = siteBefore
+  }
+})
+
+const manifestPath = (dir, name) => join(dir, '.next', 'vite-manifests', name)
+
+// A build directory as the build leaves it: BUILD_ID, without which the server
+// exits the process, and webpack's entry points for two sites. Each of
+// `viteManifests` is written to .next/vite-manifests as given, or as JSON
+// when it is not a string.
+const buildDirectory = ({ viteManifests = {} } = {}) => {
+  const dir = scratchDir('next-vite-manifest-load-')
+  mkdirSync(join(dir, '.next', 'vite-manifests'), { recursive: true })
+  writeFileSync(join(dir, '.next', 'BUILD_ID'), 'build-1')
+  writeFileSync(join(dir, '.next', 'webpack-entrypoints.json'), JSON.stringify({ hl: ENTRYPOINTS, mnt: ENTRYPOINTS }))
+  for (const [name, content] of Object.entries(viteManifests)) {
+    writeFileSync(manifestPath(dir, name), typeof content === 'string' ? content : JSON.stringify(content))
+  }
+  return dir
+}
+
+// The Vite manifest a server started on `dir` hands every render.
+const viteManifestAtStartup = (dir, options = {}) =>
+  createServer({ dir, ...options }).renderOpts.viteManifest
+
 describe("the site's Vite manifest, as the server loads it at startup", () => {
   // The build writes .next/vite-manifests/<BUILD_ID>-<site>.json; server/index.js
   // documents the contract.
-  const SITE = 'hl'
-  let site
-
-  beforeEach(() => {
-    site = process.env.SITE
-    process.env.SITE = SITE
-  })
-
-  afterEach(() => {
-    if (site === undefined) {
-      delete process.env.SITE
-    } else {
-      process.env.SITE = site
-    }
-  })
-
-  const buildDir = (viteManifests = {}) => {
-    const dir = mkdtempSync(join(tmpdir(), 'next-vite-manifest-load-'))
-    mkdirSync(join(dir, '.next', 'vite-manifests'), { recursive: true })
-    writeFileSync(join(dir, '.next', 'BUILD_ID'), 'build-1')
-    writeFileSync(join(dir, '.next', 'webpack-entrypoints.json'), JSON.stringify({ [SITE]: ENTRYPOINTS }))
-    for (const [name, content] of Object.entries(viteManifests)) {
-      writeFileSync(join(dir, '.next', 'vite-manifests', name), content)
-    }
-    return dir
-  }
-
-  const loaded = (dir) => new Server({ dir }).renderOpts.viteManifest
 
   it("is absent when the build wrote none, so every page renders from webpack's entries", () => {
-    expect(loaded(buildDir())).toBeUndefined()
+    expect(viteManifestAtStartup(buildDirectory())).toBeUndefined()
   })
 
   it('is the outDir and Vite manifest the build wrote for this build and site', () => {
-    const dir = buildDir({ 'build-1-hl.json': JSON.stringify(VITE_MANIFEST) })
+    const dir = buildDirectory({ viteManifests: { 'build-1-hl.json': VITE_MANIFEST } })
 
-    expect(loaded(dir)).toEqual(VITE_MANIFEST)
+    expect(viteManifestAtStartup(dir)).toEqual(VITE_MANIFEST)
+  })
+
+  it("reads only its own site's file, because one build directory serves several sites", () => {
+    const dir = buildDirectory({ viteManifests: { 'build-1-mnt.json': VITE_MANIFEST } })
+
+    expect(viteManifestAtStartup(dir)).toBeUndefined()
+
+    process.env.SITE = 'mnt'
+    expect(viteManifestAtStartup(dir)).toEqual(VITE_MANIFEST)
   })
 
   it('ignores a file an earlier build left behind', () => {
-    const dir = buildDir({ 'build-0-hl.json': JSON.stringify(VITE_MANIFEST) })
+    const dir = buildDirectory({ viteManifests: { 'build-0-hl.json': VITE_MANIFEST } })
 
-    expect(loaded(dir)).toBeUndefined()
+    expect(viteManifestAtStartup(dir)).toBeUndefined()
   })
 
+  // One row per rule the readme states for the file. outDir must be a path
+  // under .next/bundles, the directory the public path serves.
   it.each([
-    ["Vite's bare manifest, with no outDir", JSON.stringify(VITE_MANIFEST.manifest), /must be \{ outDir, manifest \}/],
-    ['an absolute outDir', JSON.stringify({ ...VITE_MANIFEST, outDir: '/srv/app/.next/bundles/build-1/hl/vite' }), /must be \{ outDir, manifest \}/],
-    ['an outDir that climbs out of .next/bundles', JSON.stringify({ ...VITE_MANIFEST, outDir: '../server' }), /must be \{ outDir, manifest \}/],
-    ['an outDir with no manifest', JSON.stringify({ outDir: OUT_DIR }), /must be \{ outDir, manifest \}/],
-    ['a manifest with no outDir', JSON.stringify({ manifest: VITE_MANIFEST.manifest }), /must be \{ outDir, manifest \}/],
-    ['not JSON', '{', SyntaxError]
-  ])('refuses to start when the file holds %s', (_, content, error) => {
-    const dir = buildDir({ 'build-1-hl.json': content })
+    ['text that is not JSON', '{'],
+    ['no outDir', { manifest: VITE_MANIFEST.manifest }],
+    ['no manifest', { outDir: OUT_DIR }],
+    ['an absolute outDir', { ...VITE_MANIFEST, outDir: '/srv/app/.next/bundles/build-1/hl/vite' }],
+    ['an outDir with a `..` segment', { ...VITE_MANIFEST, outDir: 'build-1/../../server' }]
+  ])('refuses to start when the file holds %s', (_, content) => {
+    const dir = buildDirectory({ viteManifests: { 'build-1-hl.json': content } })
 
-    expect(() => loaded(dir)).toThrow(error)
+    expect(() => viteManifestAtStartup(dir)).toThrow()
   })
 
-  const withChunks = (chunks) =>
-    JSON.stringify({ ...VITE_MANIFEST, manifest: { ...VITE_MANIFEST.manifest, ...chunks } })
+  // The homepage fixture with one more chunk, `_x.js`, that breaks a rule.
+  const manifestWithChunk = (chunk) =>
+    ({ ...VITE_MANIFEST, manifest: { ...VITE_MANIFEST.manifest, '_x.js': chunk } })
 
-  it('refuses to start when a chunk imports a key the manifest lacks, naming the file, chunk and key', () => {
-    const dir = buildDir({
-      'build-1-hl.json': withChunks({
-        '_header-BBBB.js': { file: 'assets/header-BBBB.js', imports: ['_gone-ZZZZ.js'] }
-      })
+  // One row per rule the readme states for a chunk. The error has to say where
+  // the problem is, so each refusal names the file and the chunk.
+  it.each([
+    ['is not an object', null],
+    ['has no file', { name: 'x' }],
+    ['has a css list holding a non-string', { file: 'x.js', css: [1] }]
+  ])('refuses to start when a chunk %s, naming the file and the chunk', (_, chunk) => {
+    const dir = buildDirectory({ viteManifests: { 'build-1-hl.json': manifestWithChunk(chunk) } })
+    const start = () => viteManifestAtStartup(dir)
+
+    expect(start).toThrow(manifestPath(dir, 'build-1-hl.json'))
+    expect(start).toThrow('"_x.js"')
+  })
+
+  it('refuses to start when a chunk imports a key the manifest lacks, naming the file, the chunk and the key', () => {
+    const dir = buildDirectory({
+      viteManifests: { 'build-1-hl.json': manifestWithChunk({ file: 'x.js', imports: ['_gone-ZZZZ.js'] }) }
     })
-    const path = join(dir, '.next', 'vite-manifests', 'build-1-hl.json')
+    const start = () => viteManifestAtStartup(dir)
 
-    expect(() => new Server({ dir })).toThrow(
-      `${path}: manifest chunk "_header-BBBB.js" imports "_gone-ZZZZ.js", which is not a key in the manifest`
-    )
-  })
-
-  it.each([
-    ['a chunk that is not an object', { '_x.js': 'assets/x.js' }, /"_x\.js" is not an object/],
-    ['a chunk with no file', { '_x.js': { name: 'x' } }, /"_x\.js" has no string `file`/],
-    ['a chunk whose css is not a list of files', { '_x.js': { file: 'x.js', css: 'x.css' } }, /"_x\.js" has a `css`/],
-    ['a chunk whose imports is not a list of keys', { '_x.js': { file: 'x.js', imports: '_y.js' } }, /"_x\.js" has an `imports`/]
-  ])('refuses to start when the manifest has %s', (_, chunks, error) => {
-    const dir = buildDir({ 'build-1-hl.json': withChunks(chunks) })
-
-    expect(() => loaded(dir)).toThrow(error)
+    expect(start).toThrow(manifestPath(dir, 'build-1-hl.json'))
+    expect(start).toThrow('"_x.js"')
+    expect(start).toThrow('"_gone-ZZZZ.js"')
   })
 })
 
 // VITE-MIGRATION(webpack-deletion): when the `vite` option goes, keep the
 // missing-manifest refusal as the test of the new default and delete the rest.
 describe('the vite option, passed through the factory consumers call', () => {
-  const SITE = 'hl'
-  let site
+  // Left out, the option reads the manifest when the build wrote one: the
+  // startup tests above cover that default.
 
-  beforeEach(() => {
-    site = process.env.SITE
-    process.env.SITE = SITE
-  })
+  it('never reads the manifest when false, so even a corrupt one cannot stop startup', () => {
+    const dir = buildDirectory({ viteManifests: { 'build-1-hl.json': '{' } })
 
-  afterEach(() => {
-    if (site === undefined) {
-      delete process.env.SITE
-    } else {
-      process.env.SITE = site
-    }
-  })
-
-  const buildDir = (withManifest) => {
-    const dir = mkdtempSync(join(tmpdir(), 'next-vite-option-'))
-    mkdirSync(join(dir, '.next', 'vite-manifests'), { recursive: true })
-    writeFileSync(join(dir, '.next', 'BUILD_ID'), 'build-1')
-    writeFileSync(join(dir, '.next', 'webpack-entrypoints.json'), JSON.stringify({ [SITE]: ENTRYPOINTS }))
-    if (withManifest) {
-      writeFileSync(join(dir, '.next', 'vite-manifests', 'build-1-hl.json'), JSON.stringify(VITE_MANIFEST))
-    }
-    return dir
-  }
-
-  const loaded = (dir, vite) => createServer({ dir, vite }).renderOpts.viteManifest
-
-  it('reads the manifest when there is one, if left out', () => {
-    expect(loaded(buildDir(true), undefined)).toEqual(VITE_MANIFEST)
-    expect(loaded(buildDir(false), undefined)).toBeUndefined()
-  })
-
-  it('never reads the manifest when false, even when there is one', () => {
-    expect(loaded(buildDir(true), false)).toBeUndefined()
+    expect(() => viteManifestAtStartup(dir, { vite: false })).not.toThrow()
+    expect(viteManifestAtStartup(dir, { vite: false })).toBeUndefined()
   })
 
   it('reads the manifest when true', () => {
-    expect(loaded(buildDir(true), true)).toEqual(VITE_MANIFEST)
+    const dir = buildDirectory({ viteManifests: { 'build-1-hl.json': VITE_MANIFEST } })
+
+    expect(viteManifestAtStartup(dir, { vite: true })).toEqual(VITE_MANIFEST)
   })
 
   it('refuses to start when true and there is no manifest, naming the expected path', () => {
-    const dir = buildDir(false)
-    const path = join(dir, '.next', 'vite-manifests', 'build-1-hl.json')
+    const dir = buildDirectory()
 
-    expect(() => loaded(dir, true)).toThrow(`no Vite manifest at ${path}`)
+    expect(() => viteManifestAtStartup(dir, { vite: true })).toThrow(manifestPath(dir, 'build-1-hl.json'))
   })
 
-  // Each row is a different way to get the guard wrong: a string from an
-  // environment variable, a `!= null` check that lets null through, and a
-  // string-only check that lets other types through.
-  it.each([['a string', 'true'], ['null', null], ['a number', 1]])('rejects %s with a TypeError', (_, vite) => {
-    expect(() => loaded(buildDir(true), vite)).toThrow(TypeError)
+  it('rejects anything but true, false or nothing, such as the string an environment variable holds', () => {
+    const dir = buildDirectory({ viteManifests: { 'build-1-hl.json': VITE_MANIFEST } })
+
+    expect(() => viteManifestAtStartup(dir, { vite: 'true' })).toThrow(TypeError)
   })
 })

@@ -42,6 +42,9 @@ describe('registerPage in a bundle with no CommonJS module binding', () => {
 
     registerPage('/', () => ({ page: PAGE }))
 
-    await expect(waitForPage('/')).resolves.toBe(PAGE)
+    // Bounded, because a page that never registers would otherwise fail only
+    // as Jest's 5-second timeout, which names no cause.
+    const notRegistered = new Promise((resolve) => setTimeout(resolve, 100, 'no page registered within 100 ms'))
+    await expect(Promise.race([waitForPage('/'), notRegistered])).resolves.toBe(PAGE)
   })
 })

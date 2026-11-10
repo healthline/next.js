@@ -242,6 +242,9 @@ export class NextScript extends Component {
     const { pathname } = __NEXT_DATA__
 
     const scripts = this.getScripts()
+    // VITE-MIGRATION(webpack-deletion): /_error is exempt, so an error page with
+    // no scripts renders silently. Before deleting webpack, make sure the error
+    // page has a Vite entry.
     if (!scripts.length && pathname !== '/_error') {
       throw new Error(
         `No scripts found for ${pathname}. Please check path`
