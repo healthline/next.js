@@ -8,7 +8,7 @@ Minimialist version of Next.js. Not intended for external consumption.
 
 ### Install Node
 
-`.nvmrc` sets the Node version: `nvm install` or `fnm use` reads it, and so do the GitHub Actions workflows.
+`.nvmrc` sets the Node version, and `nvm install` installs and switches to it.
 
 ### Install Yarn via Corepack
 
@@ -21,13 +21,20 @@ corepack prepare yarn@4.12.0 --activate
 
 ### NPM Private Repo Access
 
-If you need access to private `@healthline/*` packages, login to npm with your scope:
+Installing needs private `@healthline/*` packages, so your npm account must belong to the [healthline](https://www.npmjs.com/org/healthline) npm org, with two-factor authentication on. If it doesn't yet, register at [npmjs.com](https://www.npmjs.com/) and ask a teammate with admin rights on the org to add you. Then log in and check it worked:
 
 ```bash
-yarn npm login --scope healthline
+yarn npm login --scope healthline --web-login
+yarn npm whoami --scope healthline     # prints your npm username
 ```
 
-This creates `~/.yarnrc.yml` with your auth token.
+The login saves a token in `~/.yarnrc.yml`. npm [expires login sessions after two hours](https://github.blog/changelog/2025-12-09-npm-classic-tokens-revoked-session-based-auth-and-cli-token-management-now-available/), so log in again when an install fails with `YN0035 ... Package not found (404)`.
+
+### Install dependencies
+
+```bash
+yarn install
+```
 
 ## How to Test Locally
 
@@ -46,29 +53,33 @@ Note: you'll have to change it back to `node_modules` if you want to rebuild it
 
 ## Publishing to [@healthline/next](https://www.npmjs.com/package/@healthline/next)
 
-### Steps to Publish:
+Releases are published from a terminal. This repository is public, so no workflow here holds a token that can publish. You need:
 
-1. **Access Permissions**: Ensure you have the rights to publish to `@healthline/next` on npm and push tags to the repository.
+- the setup above, with a fresh `yarn npm login`;
+- publish rights on `@healthline/next` in the healthline npm org;
+- rights to push tags to this repository, and the GitHub CLI logged in (`gh auth login`) for the release.
 
-2. **Create Release Tag** (using [Semantic Versioning](https://semver.org/)):
+Replace `<version>` with the release's version, such as `28.0.0`:
 
-   ```bash
-   yarn release:tag
-   ```
+```bash
+git switch master && git pull
+git status                     # should report a clean working tree
+yarn install --immutable
+yarn build
+yarn version <version> --immediate
+yarn npm publish --access restricted --dry-run
+yarn npm publish --access restricted
+git checkout package.json      # restores package.json whether or not the publish worked
+```
 
-   This script will:
-   - Prompt you to select a release type (Major, Minor, or Patch)
-   - Create a new version tag based on the last tag
-   - Push the tag to trigger the GitHub Actions publish workflow
+Once `yarn npm info @healthline/next@<version>` shows the new version, record the release:
 
-3. **Verify the Release**:
+```bash
+git tag v<version> && git push origin v<version>
+gh release create v<version> --title <version> --generate-notes
+```
 
-   - Check the [publish workflow](https://github.com/healthline/next.js/actions/workflows/publish.yml) to ensure it completed successfully
-   - Verify the [GitHub release](https://github.com/healthline/next.js/releases) was created
-   - Confirm the package was published on the [npm page](https://www.npmjs.com/package/@healthline/next?activeTab=versions)
-
-The GitHub Actions workflow will automatically:
-- Build the project
-- Set the package version from the tag
-- Publish to npm
-- Create a GitHub release with auto-generated release notes
+- The dry run lists the files it would publish. They should match `files` in `package.json`.
+- `yarn version` sets the version for this publish only. The tag records it, and `package.json` on `master` keeps the version it already had.
+- npm requires a two-factor code to publish. Add `--otp <code>` if Yarn doesn't prompt for it.
+- A publish that fails with `403 (Forbidden)` means your account lacks publish rights on `@healthline/next`. Ask an admin of the healthline npm org.
