@@ -2,19 +2,31 @@ import { resolve, join } from 'path'
 import fs from 'fs'
 
 import getConfig from './config'
+import { checkAssets } from './page-assets'
+import { doPageRender, doDocRender } from './render'
 
 export default class Server {
-  constructor ({ dir = '.', dev = false, quiet = false, conf = null } = {}) {
+  // The options are declared in index.d.ts.
+  constructor ({ dir = '.', dev = false, quiet = false, conf = null, assets, loadPage } = {}) {
+    if (loadPage !== undefined && typeof loadPage !== 'function') {
+      throw new TypeError('loadPage must be a function')
+    }
+    // Legacy development compiles a page's browser entry only when it loads
+    // that page from disk, so loaded pages would render with no scripts.
+    if (dev && loadPage !== undefined && assets === undefined) {
+      throw new TypeError('loadPage with dev: true requires assets; legacy development compiles only pages it loads from disk')
+    }
+    const pageAssets = assets !== undefined ? checkAssets(assets) : undefined
     this.dir = resolve(dir)
     this.dev = dev
     this.quiet = quiet
-    this.config = getConfig(this.dir, conf)
-    this.hotReloader = dev ? this.getHotReloader() : null
-    if (!dev && !fs.existsSync(resolve(dir, '.next', 'BUILD_ID'))) {
+    this.config = pageAssets ? {} : getConfig(this.dir, conf)
+    this.hotReloader = dev && !pageAssets ? this.getHotReloader() : null
+    if (!dev && !pageAssets && !fs.existsSync(resolve(dir, '.next', 'BUILD_ID'))) {
       console.error(`> Could not find a valid build in the '${'.next'}' directory! Try building your app with 'next build' before starting the server.`)
       process.exit(1)
     }
-    const buildId = !dev ? this.readBuildId() : '-'
+    const buildId = pageAssets ? pageAssets.buildId : !dev ? this.readBuildId() : '-'
     const assetPrefix = (this.config.assetPrefix || '').replace(/\/$/, '')
     this.renderOpts = {
       dev,
@@ -22,8 +34,24 @@ export default class Server {
       hotReloader: this.hotReloader,
       publicPath: `${assetPrefix}/_next/`,
       buildId,
-      entrypoints: !dev ? this.readEntrypoints() : undefined
+      entrypoints: !dev && !pageAssets ? this.readEntrypoints() : undefined,
+      loadPage,
+      assets: pageAssets
     }
+  }
+
+  renderPage (req, res, pathname, query, initialProps, { page, err, enhancer, overloadCheck } = {}) {
+    return doPageRender(req, res, pathname, query, initialProps, {
+      ...this.renderOpts,
+      page,
+      err,
+      enhancer,
+      overloadCheck
+    })
+  }
+
+  renderDocument (page, initialProps, { amp } = {}) {
+    return doDocRender(page, initialProps, { ...this.renderOpts, amp })
   }
 
   getHotReloader () {
@@ -45,6 +73,8 @@ export default class Server {
   }
 
   defineRoutes (server) {
+    if (this.renderOpts.assets) return
+
     if (this.hotReloader) {
       server.route({
         method: 'GET',
@@ -83,6 +113,9 @@ export default class Server {
     return fs.readFileSync(buildIdPath, 'utf8').trim()
   }
 
+  // VITE-MIGRATION(webpack-deletion): delete this, the `entrypoints` render
+  // option, and the .next/BUILD_ID check and read once every site passes
+  // `assets`; bin/next-build writes both files.
   readEntrypoints () {
     const buildIdPath = join(this.dir, '.next', 'webpack-entrypoints.json')
     const entrypoints = JSON.parse(fs.readFileSync(buildIdPath, 'utf8'))

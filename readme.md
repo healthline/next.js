@@ -78,6 +78,10 @@ Each name can map to more than one file. The tool that resolves the import picks
 
 To add an import: add its entry to `exports`, write its `.d.ts`, and add a wrapper in `esm/` if the module has a default export. `yarn test:pack` fails with instructions when a wrapper or a `browser` condition is missing.
 
+## Rendering
+
+Start with the [typed rendering example](examples/render-article.ts). It shows how to supply assets and a page loader, render a page, and process the result before rendering its document. The pack suite checks this example against the declarations in the archive. See [the public types](index.d.ts) for option and fallback rules.
+
 ## Releases
 
 To publish to npm and record the GitHub release, follow the [publishing runbook](docs/publishing.md). It also covers [CI install failures](docs/publishing.md#ci-install-failures).

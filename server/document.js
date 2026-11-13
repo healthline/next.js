@@ -3,6 +3,16 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import PropTypes from 'prop-types'
 import htmlescape from 'htmlescape'
 
+function pageAssetsFor (pathname, assets) {
+  return assets ? assets.pages[pathname] : undefined
+}
+
+// React cannot escape tags assembled as markup strings.
+const escapeAttribute = (value) =>
+  value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+// VITE-MIGRATION(webpack-deletion): delete this and the webpack branches of
+// getPreloadMainLinks and getScripts once every route is in the assets.
 function scriptsForEntry (pathname, entrypoints) {
   const entry = entrypoints[`pages${pathname}.js`]
 
@@ -55,8 +65,16 @@ export class Head extends Component {
   }
 
   getPreloadMainLinks () {
-    const { __NEXT_DATA__, entrypoints } = this.context._documentProps
+    const { __NEXT_DATA__, entrypoints, assets } = this.context._documentProps
     const { pathname } = __NEXT_DATA__
+
+    const page = pageAssetsFor(pathname, assets)
+    if (page) {
+      const link = (rel) => (url) => `<link rel="${rel}" href="${escapeAttribute(url)}" crossorigin="anonymous">`
+      return page.stylesheets.map(link('stylesheet'))
+        .concat(page.preloads.map(link('modulepreload')))
+        .join('')
+    }
 
     let scripts = scriptsForEntry(pathname, entrypoints)
 
@@ -112,8 +130,15 @@ export class NextScript extends Component {
   }
 
   getScripts () {
-    const { __NEXT_DATA__, entrypoints } = this.context._documentProps
+    const { __NEXT_DATA__, entrypoints, assets } = this.context._documentProps
     const { pathname } = __NEXT_DATA__
+
+    const page = pageAssetsFor(pathname, assets)
+    if (page) {
+      return [
+        <script key={page.entry} type='module' src={page.entry} crossOrigin='anonymous' />
+      ]
+    }
 
     let scripts = scriptsForEntry(pathname, entrypoints)
 
@@ -139,11 +164,15 @@ export class NextScript extends Component {
   }
 
   render () {
-    const { __NEXT_DATA__ } = this.context._documentProps
+    const { __NEXT_DATA__, assets } = this.context._documentProps
     const { pathname } = __NEXT_DATA__
 
     const scripts = this.getScripts()
-    if (!scripts.length && pathname !== '/_error') {
+    // With assets, /_error is a route like any other.
+    // VITE-MIGRATION(webpack-deletion): without assets, /_error is exempt, so
+    // an error page with no scripts renders silently. Delete the exemption
+    // with webpack.
+    if (!scripts.length && (assets || pathname !== '/_error')) {
       throw new Error(
         `No scripts found for ${pathname}. Please check path`
       )
