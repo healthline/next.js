@@ -36,6 +36,18 @@ The login saves a token in `~/.yarnrc.yml`. npm [expires login sessions after tw
 yarn install
 ```
 
+## Check the package
+
+Run the same checks as CI, in order:
+
+```bash
+yarn build && yarn lint && yarn test --ci && yarn test:pack --ci
+```
+
+Build first because the dependency checks inspect generated `node/` and `browser/` files. Run the archive tests last: `yarn test:pack` rebuilds the package and temporarily rewrites `package.json`, which the other tests read.
+
+Packing builds fresh output and uses `pinst` to disable the contributor-only install hook in the archive, then restores it in the checkout. The archive tests check required files, the absence of consumer install hooks and restoration of the working manifest. They do not replace testing the package in frontend.
+
 ## How to Test Locally
 
 1. Build the package: `yarn build`
