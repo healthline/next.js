@@ -7,15 +7,22 @@
   },
   "description": "Minimalistic framework for server-rendered React applications",
   "main": "./node/server/next.js",
+  "types": "./index.d.ts",
   "license": "MIT",
   "repository": "healthline/next.js",
   "bugs": "https://github.com/healthline/next.js",
   "homepage": "https://github.com/healthline/next.js",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
   "files": [
     "/bin",
     "/node",
     "/browser",
-    "/babel.js"
+    "/babel.js",
+    "/*.d.ts",
+    "/client.js",
+    "/esm"
   ],
   "bin": {
     "next-build": "./bin/next-build"
@@ -27,7 +34,7 @@
     "postinstall": "husky",
     "test": "jest",
     "test:pack": "jest --config jest.pack.config.js --runInBand",
-    "lint": "standard 'bin/*' 'client/**/*.js' 'examples/**/*.js' 'jest.*.js' 'lib/**/*.js' 'server/**/*.js' 'test/**/*.js'",
+    "lint": "standard 'bin/*' 'client/**/*.js' 'examples/**/*.js' '*.js' 'esm/*.mjs' 'lib/**/*.js' 'server/**/*.js' 'test/**/*.js' 'test/fixtures/**/*.cjs' 'test/fixtures/**/*.mjs'",
     "prepack": "yarn build && pinst --disable",
     "postpack": "pinst --enable"
   },
@@ -47,6 +54,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.25.7",
+    "@types/react": "16.14.70",
     "babel-plugin-module-resolver": "^3.2.0",
     "del": "^5.1.0",
     "htmlescape": "^1.1.1",
@@ -57,6 +65,7 @@
     "strip-ansi": "^6.0.0"
   },
   "peerDependencies": {
+    "@healthline/six-million": ">=8.2.1 <11",
     "react": "^16.14.0",
     "react-dom": "^16.14.0"
   },
@@ -75,6 +84,71 @@
     "react": "16.14.0",
     "react-dom": "16.14.0",
     "semver": "^7.8.5",
-    "standard": "12.0.1"
+    "standard": "12.0.1",
+    "typescript": "5.9.3"
+  },
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./esm/index.d.mts",
+        "default": "./index.d.ts"
+      },
+      "import": "./esm/index.mjs",
+      "default": "./node/server/next.js"
+    },
+    "./babel": "./babel.js",
+    "./router": {
+      "browser": {
+        "types": "./router.browser.d.ts",
+        "default": "./browser/client/router.js"
+      },
+      "types": {
+        "import": "./esm/router.d.mts",
+        "default": "./router.d.ts"
+      },
+      "import": "./esm/router.mjs",
+      "default": "./node/server/router.js"
+    },
+    "./link": {
+      "types": {
+        "import": "./esm/link.d.mts",
+        "default": "./link.d.ts"
+      },
+      "browser": "./browser/lib/link.js",
+      "import": "./esm/link.mjs",
+      "default": "./node/lib/link.js"
+    },
+    "./head": {
+      "types": {
+        "import": "./esm/head.d.mts",
+        "default": "./head.d.ts"
+      },
+      "browser": "./browser/lib/head.js",
+      "import": "./esm/head.mjs",
+      "default": "./node/lib/head.js"
+    },
+    "./page-loader": {
+      "types": {
+        "import": "./esm/page-loader.d.mts",
+        "default": "./page-loader.d.ts"
+      },
+      "browser": "./browser/lib/page-loader.js",
+      "import": "./esm/page-loader.mjs",
+      "default": "./node/lib/page-loader.js"
+    },
+    "./document": {
+      "types": {
+        "import": "./esm/document.d.mts",
+        "default": "./document.d.ts"
+      },
+      "import": "./esm/document.mjs",
+      "default": "./node/server/document.js"
+    },
+    "./client": {
+      "types": "./client.d.ts",
+      "browser": "./browser/client/index.js",
+      "default": "./client.js"
+    },
+    "./package.json": "./package.json"
   }
 }
