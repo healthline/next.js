@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+# Grant a write permission only to a job that needs it.
+permissions:
+  contents: read
+
+# Only the newest run per ref matters; cancel the ones it supersedes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up environment
+        uses: ./.github/actions/env-setup
+        with:
+          node_auth_token: ${{ secrets.NPM_TOKEN }}
+
+      # Build first: the tests check the built package, and only the build
+      # catches a missing build dependency.
+      - run: yarn build
+
+      - run: yarn lint
+
+      - run: yarn test --ci
+
+      # Last, because packing rebuilds and rewrites the package.
+      - run: yarn test:pack --ci
