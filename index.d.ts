@@ -33,8 +33,8 @@ export interface BuildAssets {
    * `/foo/bar`. Every route the site can render, including `/_error`. A key
    * starts with a single `/`. Use the pathname returned by `renderPage` as the
    * key. For example, `/article/index` becomes `/article`, while `/` and
-   * `/index` remain distinct. With the standalone document renderer, an omitted
-   * route can use explicitly supplied webpack entrypoints.
+   * `/index` remain distinct. Only the deprecated `doDocRender`, given webpack
+   * `entrypoints` by hand, can render a route missing here.
    */
   pages: { [route: string]: PageAssets }
 }
