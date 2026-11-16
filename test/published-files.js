@@ -10,7 +10,7 @@ module.exports = function publishedFiles () {
   return files.flatMap(pattern => {
     const include = pattern.replace(/^\//, '')
     const matches = globSync(include, { cwd: packageRoot })
-    if (matches.length === 0) throw new Error(`No build files match package.json files entry "${pattern}". Run yarn build first.`)
+    if (matches.length === 0) throw new Error(`Nothing in this checkout matches package.json files entry "${pattern}". Build output needs yarn build first.`)
     return globSync(matches.flatMap(match => [match, `${match}/**/*`]), { cwd: packageRoot, withFileTypes: true })
       .filter(entry => entry.isFile())
       .map(entry => path.join(entry.parentPath, entry.name))

@@ -35,3 +35,6 @@ export interface HeadProps extends Omit<HTMLAttributes<HTMLHeadElement>, 'danger
 export class Head extends Component<HeadProps> {}
 export class Main extends Component<Pick<HTMLAttributes<HTMLDivElement>, 'className'>> {}
 export class NextScript extends Component<Pick<HTMLAttributes<HTMLScriptElement>, 'nonce'>> {}
+
+// Lets the ESM declaration name the default class as a type.
+export type { Document }

@@ -81,8 +81,8 @@ const packedConsumerModules = () => {
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'packed-consumer')
 
-const runNode = (entry, args = []) => {
-  const run = spawnSync(process.execPath, [entry, ...args], {
+const runNode = (entry, args = [], nodeOptions = []) => {
+  const run = spawnSync(process.execPath, [...nodeOptions, entry, ...args], {
     cwd: scratch,
     encoding: 'utf8',
     timeout: 10000
@@ -93,10 +93,10 @@ const runNode = (entry, args = []) => {
   return run.stdout
 }
 
-const runConsumer = (name) => {
+const runConsumer = (name, nodeOptions = []) => {
   packedConsumerModules()
   fs.copyFileSync(path.join(fixtureDir, name), path.join(scratch, name))
-  runNode(path.join(scratch, name))
+  runNode(path.join(scratch, name), [], nodeOptions)
 }
 
 describe('the packed package', () => {
@@ -154,7 +154,11 @@ describe('the packed package', () => {
     runConsumer('public-imports.cjs')
   })
 
-  it('shares server exports, head collection and page registration between import and require', () => {
+  it('resolves the browser builds under the browser condition', () => {
+    runConsumer('browser-imports.cjs', ['--conditions=browser'])
+  })
+
+  it('gives import and require the same server implementations', () => {
     runConsumer('shared-state.mjs')
   })
 

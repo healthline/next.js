@@ -44,6 +44,17 @@ async function renderArticle () {
 }
 void renderArticle
 
+// Each default class also names its instance type.
+function readInstances (
+  document: Document<{ section: string }>,
+  link: Link,
+  head: PageHead,
+  state: RouterState<{ slug: string }>
+) {
+  return [document.props.section, link.props.href, head.props.children, state.query.slug.toUpperCase()]
+}
+void readInstances
+
 const router = new RouterState('/article', {}, '/example')
 router.asPath.toUpperCase()
 // @ts-expect-error Server state has no browser navigation method.

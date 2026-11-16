@@ -1,5 +1,7 @@
-// Check emitted imports too: Babel adds runtime helpers the sources never
-// name, and workspace hoisting can hide missing consumer dependencies.
+// Every bare specifier in the published files is declared for consumers.
+// This reads the built output, because Babel adds runtime helpers the sources
+// never name, and this checkout's node_modules can resolve an undeclared
+// import that a consumer install would not.
 
 const fs = require('fs')
 const path = require('path')

@@ -7,3 +7,6 @@ export default class Head extends Component<{ children?: ReactNode }> {
 }
 
 export const defaultHead: ReactElement[]
+
+// Lets the ESM declaration name the default class as a type.
+export type { Head }

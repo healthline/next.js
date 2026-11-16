@@ -4,7 +4,7 @@ Publish from a terminal after the release changes merge to `master`. Follow the 
 
 ## 1. Check the archive and registry
 
-Start in a clean release worktree. Replace `28.1.0` with the version you're releasing. Run all three steps in this checkout.
+Start in a clean release worktree. Replace `28.1.0` with the version you're releasing. Run all three steps in this checkout and the same terminal session: steps 2 and 3 reuse `release_version` and stop if it is unset.
 
 ```bash
 release_version=28.1.0
@@ -21,6 +21,7 @@ Continue when the dry run lists the expected files and says `Package would be pu
 ## 2. Publish and verify the version
 
 ```bash
+: "${release_version:?Set release_version as in step 1}" &&
 yarn npm publish --access restricted
 ```
 
@@ -29,6 +30,7 @@ Enter the one-time password when Yarn prompts after the build. If publish return
 After Yarn reports that the archive was published, look up the version.
 
 ```bash
+: "${release_version:?Set release_version as in step 1}" &&
 yarn npm info "@healthline/next@$release_version" --fields version
 ```
 
@@ -39,6 +41,7 @@ Continue when the returned version exactly matches `release_version`. Yarn can r
 Restore the temporary version bump, then tag the source commit you published.
 
 ```bash
+: "${release_version:?Set release_version as in step 1}" &&
 git restore -- package.json &&
 git tag "v$release_version" &&
 git push origin "refs/tags/v$release_version" &&
