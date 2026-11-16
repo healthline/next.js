@@ -54,8 +54,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.25.7",
-    "@types/react": "16.14.70",
-    "babel-plugin-module-resolver": "^3.2.0",
+    "@types/react": "^16.14.0",
     "del": "^5.1.0",
     "htmlescape": "^1.1.1",
     "minimist": "1.2.7",
@@ -89,10 +88,7 @@
   },
   "exports": {
     ".": {
-      "types": {
-        "import": "./esm/index.d.mts",
-        "default": "./index.d.ts"
-      },
+      "types": "./index.d.ts",
       "import": "./esm/index.mjs",
       "default": "./node/server/next.js"
     },
@@ -102,45 +98,23 @@
         "types": "./router.browser.d.ts",
         "default": "./browser/client/router.js"
       },
-      "types": {
-        "import": "./esm/router.d.mts",
-        "default": "./router.d.ts"
-      },
+      "types": "./router.d.ts",
       "import": "./esm/router.mjs",
       "default": "./node/server/router.js"
     },
     "./link": {
-      "types": {
-        "import": "./esm/link.d.mts",
-        "default": "./link.d.ts"
-      },
+      "types": "./link.d.ts",
       "browser": "./browser/lib/link.js",
       "import": "./esm/link.mjs",
       "default": "./node/lib/link.js"
     },
-    "./head": {
-      "types": {
-        "import": "./esm/head.d.mts",
-        "default": "./head.d.ts"
-      },
-      "browser": "./browser/lib/head.js",
-      "import": "./esm/head.mjs",
-      "default": "./node/lib/head.js"
-    },
     "./page-loader": {
-      "types": {
-        "import": "./esm/page-loader.d.mts",
-        "default": "./page-loader.d.ts"
-      },
+      "types": "./page-loader.d.ts",
       "browser": "./browser/lib/page-loader.js",
-      "import": "./esm/page-loader.mjs",
       "default": "./node/lib/page-loader.js"
     },
     "./document": {
-      "types": {
-        "import": "./esm/document.d.mts",
-        "default": "./document.d.ts"
-      },
+      "types": "./document.d.ts",
       "import": "./esm/document.mjs",
       "default": "./node/server/document.js"
     },

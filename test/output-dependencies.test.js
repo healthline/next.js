@@ -75,15 +75,14 @@ describe(
     const importers = collectPackageNames(publishedFiles().filter(isJavaScript))
     const names = [...importers.keys()].sort()
 
-    it('finds a package through each kind of import: from, require and require.resolve', () => {
+    it('finds a package through each kind of import: from and require', () => {
       // A pattern that stops matching drops its packages, and the claim below
       // then passes for them silently. @babel/runtime appears only in
-      // browser/'s `from` imports, htmlescape only in node/'s `require` calls,
-      // and babel-plugin-module-resolver only in babel.js's `require.resolve`.
+      // browser/'s `from` imports, and htmlescape only in node/'s `require` calls.
       // If one of them is removed on purpose, name another package that only
       // that pattern finds.
       expect(names).toEqual(
-        expect.arrayContaining(['@babel/runtime', 'htmlescape', 'babel-plugin-module-resolver'])
+        expect.arrayContaining(['@babel/runtime', 'htmlescape'])
       )
     })
 

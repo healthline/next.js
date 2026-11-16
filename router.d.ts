@@ -7,8 +7,5 @@ export default class RouterState<Query = Record<string, unknown>> {
   asPath: string
 }
 
-/** Shared modules may import this name. Events exist only in the browser. */
+/** Code that also runs in the browser may import this name. Events exist only there. */
 export const events: undefined
-
-// Lets the ESM declaration name the default class as a type.
-export type { RouterState }

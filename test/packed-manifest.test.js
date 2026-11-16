@@ -93,6 +93,8 @@ const runNode = (entry, args = [], nodeOptions = []) => {
   return run.stdout
 }
 
+// Fixtures run from the scratch directory. Inside the checkout, Node would
+// resolve `@healthline/next` to the source tree instead of the tarball.
 const runConsumer = (name, nodeOptions = []) => {
   packedConsumerModules()
   fs.copyFileSync(path.join(fixtureDir, name), path.join(scratch, name))
@@ -125,16 +127,6 @@ describe('the packed package', () => {
     expect(fs.existsSync(tarball)).toBe(true)
   })
 
-  it('exports every entry the Babel preset aliases', () => {
-    const manifest = readPackedManifest()
-    const preset = fs.readFileSync(path.join(unpackPackedPackage(), 'babel.js'), 'utf8')
-    const aliases = [...preset.matchAll(new RegExp(`'${manifest.name}/([^']+)'`, 'g'))]
-      .map(([, name]) => `./${name}`)
-
-    expect(aliases.length).toBeGreaterThan(0)
-    expect(aliases.filter(name => !(name in manifest.exports))).toEqual([])
-  })
-
   it('packs every file the manifest points at', () => {
     const manifest = readPackedManifest()
     const targetsOf = (entry) => typeof entry === 'string' ? [entry] : Object.values(entry).flatMap(targetsOf)
@@ -150,26 +142,23 @@ describe('the packed package', () => {
     expect(runNode(cli, ['--help'])).toContain('Compiles the application for production deployment')
   })
 
-  it('resolves public imports and rejects private paths in Node', () => {
-    runConsumer('public-imports.cjs')
+  it('resolves each entry to its Node build, and rejects private paths', () => {
+    runConsumer('entry-builds.cjs')
   })
 
-  it('resolves the browser builds under the browser condition', () => {
-    runConsumer('browser-imports.cjs', ['--conditions=browser'])
+  it('resolves browser entries to their browser builds under the browser condition', () => {
+    runConsumer('entry-builds.cjs', ['--conditions=browser'])
   })
 
-  it('gives import and require the same server implementations', () => {
-    runConsumer('shared-state.mjs')
+  it('gives import and require the same exports', () => {
+    runConsumer('esm-entries.mjs')
   })
 
   it.each([
     ['browser-types.ts', 'test/fixtures/packed-consumer/browser-types.ts', [
       '--module', 'esnext', '--target', 'es2015', '--moduleResolution', 'bundler', '--customConditions', 'browser'
     ]],
-    ['server-types.ts', 'test/fixtures/packed-consumer/server-types.ts', ['--module', 'nodenext', '--moduleResolution', 'nodenext']],
-    ['server-types.mts', 'test/fixtures/packed-consumer/server-types.ts', ['--module', 'nodenext', '--moduleResolution', 'nodenext']],
-    // Bundler resolution reads the ESM declarations with different default-import rules.
-    ['server-types.bundler.ts', 'test/fixtures/packed-consumer/server-types.ts', [
+    ['server-types.ts', 'test/fixtures/packed-consumer/server-types.ts', [
       '--module', 'esnext', '--target', 'es2015', '--moduleResolution', 'bundler'
     ]]
   ])('type-checks the packed consumer %s', (name, fixture, options) => {

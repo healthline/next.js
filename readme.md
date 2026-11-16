@@ -1,50 +1,117 @@
 # HLM's fork of Next.js
 
-We publish this internal fork as `@healthline/next`.
+Minimialist version of Next.js. Not intended for external consumption.
+
+[Base Documentation](https://github.com/healthline/next.js/tree/fork-base#how-to-use)
 
 ## Setup
 
-Run these commands from the repository root. `nvm install` uses the Node version in [`.nvmrc`](.nvmrc). Corepack uses the Yarn version pinned in [`package.json`](package.json).
+### Install Node
+
+`.nvmrc` sets the Node version, and `nvm install` installs and switches to it.
+
+### Install Yarn via Corepack
+
+This project uses Yarn 4 managed via corepack. To set up:
 
 ```bash
-nvm install
 corepack enable
-yarn --version
+corepack prepare yarn@4.12.0 --activate
 ```
 
-Your npm account needs read access to the [healthline npm organization](https://www.npmjs.com/org/healthline). Sign in and confirm Yarn prints your npm username before installing.
+### NPM Private Repo Access
+
+Installing needs private `@healthline/*` packages, so your npm account must belong to the [healthline](https://www.npmjs.com/org/healthline) npm org, with two-factor authentication on. If it doesn't yet, register at [npmjs.com](https://www.npmjs.com/) and ask a teammate with admin rights on the org to add you. Then log in and check it worked:
 
 ```bash
 yarn npm login --scope healthline --web-login
-yarn npm whoami --scope healthline
-yarn install --immutable
+yarn npm whoami --scope healthline     # prints your npm username
 ```
 
-If a private package returns a 404, repeat `yarn npm whoami --scope healthline`. Sign in again if the session expired. If it prints the right username and the install still fails, check your organization access.
+The login saves a token in `~/.yarnrc.yml`. npm [expires login sessions after two hours](https://github.blog/changelog/2025-12-09-npm-classic-tokens-revoked-session-based-auth-and-cli-token-management-now-available/), so log in again when an install fails with `YN0035 ... Package not found (404)`.
+
+### Install dependencies
+
+```bash
+yarn install
+```
 
 ## Check the package
+
+Run the same checks as CI, in order:
 
 ```bash
 yarn build && yarn lint && yarn test --ci && yarn test:pack --ci
 ```
 
-Run the pack suite last because packing rebuilds the output and temporarily rewrites `package.json`. To try the actual release artifact in frontend, run `yarn pack --out /tmp/healthline-next.tgz` here, then `yarn add @healthline/next@file:/tmp/healthline-next.tgz` in a disposable frontend worktree.
+Build first because the dependency checks inspect generated `node/` and `browser/` files. Run the archive tests last: `yarn test:pack` rebuilds the package and temporarily rewrites `package.json`, which the other tests read.
+
+Packing builds fresh output and uses `pinst` to disable the contributor-only install hook in the archive, then restores it in the checkout. The archive tests check required files, the absence of consumer install hooks and restoration of the working manifest. They do not replace testing the package in frontend.
+
+## How to test in frontend
+
+Frontend can import only what the packed archive exports, so test the archive, not this folder:
+
+1. Here: `yarn pack --out /tmp/healthline-next.tgz`
+2. In a disposable frontend worktree: `yarn add @healthline/next@file:/tmp/healthline-next.tgz`
+3. Repeat both steps after each change here.
 
 ## Public imports
 
-Use the public names below. The [export map](package.json) defines which package paths callers can import. Upgrade frontend and migrate any private imports together.
+Frontend imports the package only by these names. `exports` in [`package.json`](package.json) maps each name to a file, and any other path fails to resolve.
 
-| Entry | Purpose |
+| Import | Who uses it |
 | --- | --- |
-| `@healthline/next` | Server construction |
-| `@healthline/next/babel` | Babel preset; also supports legacy `next/*` aliases |
-| `@healthline/next/router` | Browser navigation singleton, or request router-state class in Node |
+| `@healthline/next` | Frontend's server: create the app, render pages |
+| `@healthline/next/babel` | Frontend's Babel config |
+| `@healthline/next/router` | Navigation in the browser; request state on the server |
 | `@healthline/next/client` | Browser startup |
-| `@healthline/next/document` | Server Document |
-| `@healthline/next/link`, `head`, `page-loader` | Shared entries |
+| `@healthline/next/document` | Frontend's `pages/_document.js` |
+| `@healthline/next/link`, `@healthline/next/page-loader` | Links, and page registration in the browser |
 
-Router events and navigation are browser APIs. For browser TypeScript code, use `moduleResolution: "bundler"` with `customConditions: ["browser"]`. Node resolves the server router.
+Each name can map to more than one file. The tool that resolves the import picks one by condition:
 
-## Releases
+- **`browser`**: browser bundles (webpack and Vite) get the build in `browser/`.
+- **`import`**: Node loading the package as native ESM, as the Vite server build does, gets a wrapper in `esm/`. The wrapper re-exports the CommonJS build in `node/`, so both module systems share one copy of the code.
+- **`default`**: everything else (`require`, webpack's server build, Jest) gets the CommonJS build in `node/`.
+- **`types`**: TypeScript gets the hand-written `.d.ts` file. It must come before the condition it describes.
 
-Follow the [publishing runbook](docs/publishing.md) to publish to npm and record the GitHub release.
+To add an import: add its entry to `exports`, write its `.d.ts`, and add a wrapper in `esm/` if the module has a default export. `yarn test:pack` fails with instructions when a wrapper or a `browser` condition is missing.
+
+## CI credentials: `NPM_TOKEN`
+
+CI installs private `@healthline/*` packages with an npm token from the repository secret `NPM_TOKEN`. It should be a read-only token for `@healthline` packages.
+
+If CI fails at Install Packages with `YN0035 ... Package not found (404)`, npm rejected the token: it expired, was revoked, or lost access. With `npmAuthToken ... got object`, the secret is missing or empty. Either way, someone with access to the `healthline` npm org replaces the secret with a new read-only granular token, then re-runs CI.
+
+## Publishing to [@healthline/next](https://www.npmjs.com/package/@healthline/next)
+
+Releases are published from a terminal. This repository is public, so no workflow here holds a token that can publish. You need:
+
+- the setup above, with a fresh `yarn npm login`;
+- publish rights on `@healthline/next` in the healthline npm org;
+- rights to push tags to this repository, and the GitHub CLI logged in (`gh auth login`) for the release.
+
+Replace `<version>` with the release's version, such as `28.0.0`:
+
+```bash
+git switch master && git pull
+git status                     # should report a clean working tree
+yarn install --immutable
+yarn version <version> --immediate
+yarn npm publish --access restricted --dry-run
+yarn npm publish --access restricted
+git checkout package.json      # restores package.json whether or not the publish worked
+```
+
+Once `yarn npm info @healthline/next@<version>` shows the new version, record the release:
+
+```bash
+git tag v<version> && git push origin v<version>
+gh release create v<version> --title <version> --generate-notes
+```
+
+- Each `yarn npm publish` builds the package first, through the `prepack` script. The dry run then lists the files it would publish, which should match `files` in `package.json`.
+- `yarn version` sets the version for this publish only. The tag records it, and `package.json` on `master` keeps the version it already had.
+- npm requires a two-factor code to publish, and Yarn asks for it once the build has finished. A code passed up front with `--otp` can expire while the build runs.
+- A publish that fails with `403 (Forbidden)` means your account lacks publish rights on `@healthline/next`. Ask an admin of the healthline npm org.

@@ -1702,10 +1702,9 @@ __metadata:
     "@babel/core": "npm:^7.25.7"
     "@babel/runtime": "npm:^7.25.7"
     "@healthline/six-million": "npm:~8.2.1"
-    "@types/react": "npm:16.14.70"
+    "@types/react": "npm:^16.14.0"
     babel-eslint: "npm:10.0.3"
     babel-jest: "npm:^29"
-    babel-plugin-module-resolver: "npm:^3.2.0"
     del: "npm:^5.1.0"
     eslint: "npm:~5.4.0"
     htmlescape: "npm:^1.1.1"
@@ -2356,7 +2355,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react@npm:16.14.70":
+"@types/react@npm:^16.14.0":
   version: 16.14.70
   resolution: "@types/react@npm:16.14.70"
   dependencies:

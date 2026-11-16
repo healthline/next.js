@@ -23,22 +23,11 @@ export interface RouteInfo {
   err?: unknown
 }
 
-type RouteEvent = 'routeChangeStart' | 'routeChangeComplete'
-type RouteEventHandler = (as: string) => void
-// Any other name, typed as mitt types it. A route event name must use the
-// route event signature, so it cannot carry another payload.
-type OtherEvent<Type extends string> = Type & (Type extends RouteEvent ? never : unknown)
-type OtherEventHandler = (event?: any) => void
-
-/** A mitt emitter. The router emits the route events; applications may emit others. */
-export const events: {
-  on(type: RouteEvent, handler: RouteEventHandler): void
-  on<Type extends string>(type: OtherEvent<Type>, handler: OtherEventHandler): void
-  off(type: RouteEvent, handler: RouteEventHandler): void
-  off<Type extends string>(type: OtherEvent<Type>, handler: OtherEventHandler): void
-  emit(type: RouteEvent, as: string): void
-  emit<Type extends string>(type: OtherEvent<Type>, event?: unknown): void
-}
+/**
+ * A mitt emitter. The router emits `routeChangeStart` and `routeChangeComplete`
+ * with the displayed URL; applications may emit their own events on it.
+ */
+export const events: import('mitt').Emitter
 
 export function createRouter(
   pathname: string,

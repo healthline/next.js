@@ -13,6 +13,3 @@ export interface LinkProps {
 }
 
 export default class Link extends Component<LinkProps> {}
-
-// Lets the ESM declaration name the default class as a type.
-export type { Link }
