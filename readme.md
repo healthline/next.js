@@ -78,40 +78,6 @@ Each name can map to more than one file. The tool that resolves the import picks
 
 To add an import: add its entry to `exports`, write its `.d.ts`, and add a wrapper in `esm/` if the module has a default export. `yarn test:pack` fails with instructions when a wrapper or a `browser` condition is missing.
 
-## CI credentials: `NPM_TOKEN`
+## Releases
 
-CI installs private `@healthline/*` packages with an npm token from the repository secret `NPM_TOKEN`. It should be a read-only token for `@healthline` packages.
-
-If CI fails at Install Packages with `YN0035 ... Package not found (404)`, npm rejected the token: it expired, was revoked, or lost access. With `npmAuthToken ... got object`, the secret is missing or empty. Either way, someone with access to the `healthline` npm org replaces the secret with a new read-only granular token, then re-runs CI.
-
-## Publishing to [@healthline/next](https://www.npmjs.com/package/@healthline/next)
-
-Releases are published from a terminal. This repository is public, so no workflow here holds a token that can publish. You need:
-
-- the setup above, with a fresh `yarn npm login`;
-- publish rights on `@healthline/next` in the healthline npm org;
-- rights to push tags to this repository, and the GitHub CLI logged in (`gh auth login`) for the release.
-
-Replace `<version>` with the release's version, such as `28.0.0`:
-
-```bash
-git switch master && git pull
-git status                     # should report a clean working tree
-yarn install --immutable
-yarn version <version> --immediate
-yarn npm publish --access restricted --dry-run
-yarn npm publish --access restricted
-git checkout package.json      # restores package.json whether or not the publish worked
-```
-
-Once `yarn npm info @healthline/next@<version>` shows the new version, record the release:
-
-```bash
-git tag v<version> && git push origin v<version>
-gh release create v<version> --title <version> --generate-notes
-```
-
-- Each `yarn npm publish` builds the package first, through the `prepack` script. The dry run then lists the files it would publish, which should match `files` in `package.json`.
-- `yarn version` sets the version for this publish only. The tag records it, and `package.json` on `master` keeps the version it already had.
-- npm requires a two-factor code to publish, and Yarn asks for it once the build has finished. A code passed up front with `--otp` can expire while the build runs.
-- A publish that fails with `403 (Forbidden)` means your account lacks publish rights on `@healthline/next`. Ask an admin of the healthline npm org.
+To publish to npm and record the GitHub release, follow the [publishing runbook](docs/publishing.md). It also covers [CI install failures](docs/publishing.md#ci-install-failures).
