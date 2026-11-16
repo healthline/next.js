@@ -85,6 +85,8 @@ export interface RenderOptions {
   /** URL prefix for webpack entrypoints. Supplied asset URLs already include their prefix. */
   publicPath: string
   buildId: string
+  // VITE-MIGRATION(webpack-deletion): delete `entrypoints` and make `assets`
+  // required, here and in ServerOptions, once webpack builds no pages.
   entrypoints: WebpackEntrypoints | undefined
   /** The checked copy of `ServerOptions.assets`. Webpack-only callers omit it. */
   assets?: Readonly<BuildAssets> | undefined
