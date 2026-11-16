@@ -66,25 +66,21 @@ export async function doDocRender (page, initialProps, { amp, dev, dir, publicPa
   const Document = await loadComponent(amp ? '_amp' : '_document', { dir, loadPage })
 
   const docProps = await Document.getInitialProps({ initialProps, renderPage: () => page })
-  // Seed renders have no page pathname. Their Document still supplies the browser data.
-  const usePageData = Boolean(assets && page.pathname)
-  const renderData = usePageData ? page : docProps
   const nextData = {
     buildId,
-    props: renderData.props,
-    pathname: renderData.pathname,
-    query: renderData.query,
+    props: docProps.props,
+    pathname: docProps.pathname,
+    query: docProps.query,
     publicPath: docProps.publicPath || publicPath,
-    err: renderData.err
+    err: docProps.err
   }
   const doc = createElement(Document, {
     __NEXT_DATA__: nextData,
-    // Keep caller-supplied entrypoints as a per-route fallback during migration.
-    // VITE-MIGRATION(webpack-deletion): the dev fallback reads webpack's
-    // compilation; delete it with client/next-dev.js.
+    // With assets, Head and NextScript read the assets and never the entrypoints.
+    // VITE-MIGRATION(webpack-deletion): delete `entrypoints`; the dev branch
+    // reads webpack's compilation, and goes with client/next-dev.js.
     entrypoints:
-      entrypoints ||
-      (assets && {}) ||
+      assets ? undefined : entrypoints ||
       hotReloader.multiStats.stats.reduce((prev, { compilation }) => {
         for (let [entryName, entrypoint] of compilation.entrypoints.entries()) {
           const path = prev[entryName] = prev[entryName] = prev[entryName] || { chunks: [] }
@@ -102,7 +98,6 @@ export async function doDocRender (page, initialProps, { amp, dev, dir, publicPa
       }, {}),
     dev,
     ...docProps,
-    ...(usePageData ? { __NEXT_DATA__: nextData } : {}),
     // A Document cannot replace the assets checked at startup.
     assets
   })
@@ -144,6 +139,7 @@ async function ensurePage (page, { dir, hotReloader }) {
 }
 
 async function loadComponent (page, { dir, hotReloader, loadPage }) {
+  // Callers name the built-in templates without a slash: '_error', '_document'.
   if (loadPage) return loadPage(page.startsWith('/') ? page : `/${page}`)
 
   // VITE-MIGRATION(server-tree-switch): keep filesystem loading for callers

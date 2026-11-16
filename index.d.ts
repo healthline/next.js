@@ -29,12 +29,9 @@ export interface BuildAssets {
   /** Identifies this build. Non-empty. */
   buildId: string
   /**
-   * Keyed by route, the page's `__NEXT_DATA__.pathname`, such as `/article` or
-   * `/foo/bar`. Every route the site can render, including `/_error`. A key
-   * starts with a single `/`. Use the pathname returned by `renderPage` as the
-   * key. For example, `/article/index` becomes `/article`, while `/` and
-   * `/index` remain distinct. Only the deprecated `doDocRender`, given webpack
-   * `entrypoints` by hand, can render a route missing here.
+   * Keyed by the pathname `renderPage` returns, such as `/article`. Include
+   * every route the site can render, and `/_error`. A render of a route that
+   * is missing here fails with "No scripts found".
    */
   pages: { [route: string]: PageAssets }
 }
@@ -59,37 +56,35 @@ export interface ServerOptions {
   dev?: boolean
   quiet?: boolean
   /**
-   * Omit to load server components from `.next/server/pages`. With `dev`, also
-   * supply `assets`: legacy development compiles only pages it loads from disk.
+   * Omit to load server components from `.next/server/pages`, as webpack
+   * builds them. With `dev`, also supply `assets`: webpack development
+   * compiles only pages it loads from disk.
    */
   loadPage?: LoadPage
   /** Accepted and ignored. */
   conf?: unknown
   /**
-   * Checked at startup. Supplying assets disables legacy compilation,
-   * while `dev` still enables rendering diagnostics. Without `loadPage`, server
-   * components then come from the existing `.next/server/pages`, which nothing
-   * recompiles. The server reads none of `next.config.js`, `.next/BUILD_ID`,
-   * `.next/webpack-entrypoints.json` or `SITE`. The consumer serves the supplied
-   * URLs. `defineRoutes` registers no static or HMR routes.
+   * The browser files the consumer built, checked at startup. With assets the
+   * server starts no webpack and reads none of `next.config.js`,
+   * `.next/BUILD_ID`, `.next/webpack-entrypoints.json` or `SITE`. The consumer
+   * serves the URLs itself, so `defineRoutes` registers no routes. Pass
+   * `loadPage` with it.
    */
   assets?: BuildAssets
 }
 
-/** Legacy configuration for the standalone rendering functions. Prefer Server methods. */
+/**
+ * Webpack-path configuration for the standalone rendering functions.
+ * VITE-MIGRATION(webpack-deletion): delete with doPageRender and doDocRender.
+ */
 export interface RenderOptions {
   dev: boolean
   dir: string
   hotReloader: unknown
-  loadPage?: LoadPage
-  /** URL prefix for webpack entrypoints. Supplied asset URLs already include their prefix. */
+  /** URL prefix for webpack entrypoints. */
   publicPath: string
   buildId: string
-  // VITE-MIGRATION(webpack-deletion): delete `entrypoints` and make `assets`
-  // required, here and in ServerOptions, once webpack builds no pages.
   entrypoints: WebpackEntrypoints | undefined
-  /** The checked copy of `ServerOptions.assets`. Webpack-only callers omit it. */
-  assets?: Readonly<BuildAssets> | undefined
 }
 
 export type WebpackEntrypoints = Record<string, { chunks: { file: string; module: boolean }[] }>
@@ -130,9 +125,8 @@ export interface Server {
   ): Promise<PageResult<Props extends null | undefined ? unknown : Props, Query>>
   /**
    * Render the document after any consumer processing of the page result.
-   * With supplied assets and a pathname, the page supplies the route, props,
-   * query and error sent to the browser. A route-less seed render uses the
-   * Document's initial props instead.
+   * The Document's `getInitialProps` decides the route, props, query and error
+   * sent to the browser, so return the page's fields from it.
    */
   renderDocument<Page extends Partial<PageResult>> (
     page: Page,

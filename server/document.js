@@ -3,11 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import PropTypes from 'prop-types'
 import htmlescape from 'htmlescape'
 
-function pageAssetsFor (pathname, assets) {
-  return assets ? assets.pages[pathname] : undefined
-}
-
-// React cannot escape tags assembled as markup strings.
+// Head joins its link tags into one HTML string, so React does not escape them.
 const escapeAttribute = (value) =>
   value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
@@ -68,8 +64,10 @@ export class Head extends Component {
     const { __NEXT_DATA__, entrypoints, assets } = this.context._documentProps
     const { pathname } = __NEXT_DATA__
 
-    const page = pageAssetsFor(pathname, assets)
-    if (page) {
+    if (assets) {
+      // NextScript reports a route the assets do not name.
+      const page = assets.pages[pathname]
+      if (!page) return ''
       const link = (rel) => (url) => `<link rel="${rel}" href="${escapeAttribute(url)}" crossorigin="anonymous">`
       return page.stylesheets.map(link('stylesheet'))
         .concat(page.preloads.map(link('modulepreload')))
@@ -133,11 +131,9 @@ export class NextScript extends Component {
     const { __NEXT_DATA__, entrypoints, assets } = this.context._documentProps
     const { pathname } = __NEXT_DATA__
 
-    const page = pageAssetsFor(pathname, assets)
-    if (page) {
-      return [
-        <script key={page.entry} type='module' src={page.entry} crossOrigin='anonymous' />
-      ]
+    if (assets) {
+      const page = assets.pages[pathname]
+      return page ? [<script key={page.entry} type='module' src={page.entry} crossOrigin='anonymous' />] : []
     }
 
     let scripts = scriptsForEntry(pathname, entrypoints)

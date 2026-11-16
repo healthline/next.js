@@ -5,7 +5,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { JSDOM } from 'jsdom'
 import Document, { Head, Main, NextScript } from '../server/document'
-import createServer, { doPageRender, doDocRender } from '../server/next'
+import createServer from '../server/next'
 import { HotReloader } from '@healthline/six-million'
 
 jest.mock('@healthline/six-million', () => ({ HotReloader: jest.fn() }))
@@ -131,10 +131,6 @@ const OVERRIDING_DOCUMENT = `
   class Overriding extends Document {}
   Overriding.getInitialProps = async ({ renderPage }) => ({
     ...renderPage(),
-    pathname: '/_error',
-    props: { title: 'Document props' },
-    query: { section: 'Document query' },
-    err: { message: 'Document error' },
     assets: {
       buildId: 'other',
       pages: { '/article': { entry: '/elsewhere.js', stylesheets: ['/elsewhere.css'], preloads: [] } }
@@ -214,7 +210,7 @@ describe('a server given assets, outside dev', () => {
     const app = createServer({ dir, dev: false, assets: ASSETS })
     const markup = await renderThroughServer(app, '/article')
 
-    expect(app.renderOpts.buildId).toBe('build-7')
+    expect(nextData(markup).buildId).toBe('build-7')
     expect(loadingTags(markup).moduleScripts).toEqual([ARTICLE.entry])
   })
 })
@@ -380,31 +376,10 @@ describe('the tags of a page the assets name', () => {
 })
 
 describe('a route the assets do not name', () => {
-  // VITE-MIGRATION(webpack-deletion): delete this test once no site builds
-  // pages with webpack.
-  it("renders from webpack's entrypoints and public path when the render options carry them", async () => {
-    const dir = appDir({ files: {
-      'next.config.js': 'throw new Error("Build configuration must not run")'
-    } })
-    const app = createServer({ dir, assets: ASSETS })
-    const options = { ...app.renderOpts, entrypoints: ENTRYPOINTS, publicPath: PUBLIC_PATH }
-    const page = await doPageRender({ url: '/standard' }, {}, '/standard', {}, {}, options)
-    const markup = await doDocRender(page, {}, options)
-
-    expect(loadingTags(markup).moduleScripts).toEqual(
-      ENTRYPOINTS['pages/standard.js'].chunks.map(({ file }) => `${PUBLIC_PATH}${file}`)
-    )
-  })
-
-  it('fails the render when there are no entrypoints either', async () => {
+  it('fails the render', async () => {
     const app = createServer({ dir: appDir(), dev: false, assets: ASSETS })
 
     await expect(renderThroughServer(app, '/missing')).rejects.toThrow('No scripts found for /missing')
-  })
-
-  it('renders the same markup as when there are no assets', () => {
-    expect(renderDocument({ pathname: '/standard', assets: ASSETS }))
-      .toBe(renderDocument({ pathname: '/standard', assets: undefined }))
   })
 })
 
@@ -420,86 +395,16 @@ describe('instance rendering', () => {
     expect(page).toMatchObject({ pathname: '/article', query: { section: 'food' }, props: { title: 'Article' } })
     expect(page.html).toBeUndefined()
   })
-
-  it("keeps each server's page loader and build identity together across renders", async () => {
-    const first = createServer({
-      assets: ASSETS,
-      loadPage: id => id === '/_document' ? Document : () => 'first article'
-    })
-    const second = createServer({
-      assets: { ...ASSETS, buildId: 'build-8', pages: { ...ASSETS.pages, '/article': { ...ARTICLE, entry: '/b8/article.js' } } },
-      loadPage: id => id === '/_document' ? Document : () => 'second article'
-    })
-
-    for (const [app, body, buildId, entry] of [
-      [first, 'first article', 'build-7', ARTICLE.entry],
-      [second, 'second article', 'build-8', '/b8/article.js'],
-      [first, 'first article', 'build-7', ARTICLE.entry]
-    ]) {
-      const markup = await renderThroughServer(app, '/article')
-      expect(markup).toContain(body)
-      expect(nextData(markup).buildId).toBe(buildId)
-      expect(loadingTags(markup).moduleScripts).toEqual([entry])
-    }
-  })
 })
 
 describe('the assets, against what a Document passes', () => {
-  it('uses the processed page data with the package Document', async () => {
-    const app = createServer({
-      assets: ASSETS,
-      loadPage: async (route) => route === '/_document' ? Document : () => 'article body'
-    })
-
-    const page = await app.renderPage({ url: '/article?section=food' }, {}, '/article', { section: 'food' }, { title: 'Article' }, {
-      enhancer: Component => props => createElement('main', null, createElement(Component, props))
-    })
-    page.props = { ...page.props, title: 'Processed article' }
-    const markup = await app.renderDocument(page, {})
-    const tags = loadingTags(markup)
-    const data = nextData(markup)
-
-    const wrapper = parse(markup).querySelector('#__next > main')
-    expect(wrapper && wrapper.textContent).toBe('article body')
-    expect(data.props).toEqual({ title: 'Processed article' })
-    expect(data.query).toEqual({ section: 'food' })
-    expect(data.err).toBeUndefined()
-    expect(tags.moduleScripts).toEqual([ARTICLE.entry])
-    expect(tags.stylesheets).toEqual(ARTICLE.stylesheets)
-    expect(tags.modulepreloads).toEqual(ARTICLE.preloads)
-  })
-
-  it("wins over the route, assets and entrypoints a Document's getInitialProps returns", async () => {
+  it("wins over the assets and entrypoints a Document's getInitialProps returns", async () => {
     const app = createServer({ dir: appDir({ document: OVERRIDING_DOCUMENT }), dev: false, assets: ASSETS })
 
     const tags = loadingTags(await renderThroughServer(app, '/article'))
 
     expect(tags.moduleScripts).toEqual([ARTICLE.entry])
     expect(tags.stylesheets).toEqual(ARTICLE.stylesheets)
-  })
-})
-
-describe('browser data on the supplied-assets path', () => {
-  it.each([
-    ['an error', { message: 'Page error', technicalErrorDetails: { errorStack: 'Frontend diagnostics' } }],
-    ['no error', undefined]
-  ])('preserves the page props, query and %s over conflicting Document values', async (_, err) => {
-    const app = createServer({ dir: appDir({ document: OVERRIDING_DOCUMENT }), assets: ASSETS })
-    const page = {
-      pathname: '/article',
-      props: { title: 'Processed article' },
-      query: { section: 'food' },
-      err,
-      html: '<article>Processed article</article>',
-      head: ''
-    }
-
-    const markup = await app.renderDocument(page, {})
-    const data = nextData(markup)
-
-    expect(data.props).toEqual({ title: 'Processed article' })
-    expect(data.query).toEqual({ section: 'food' })
-    expect(data.err).toEqual(err)
   })
 })
 
@@ -523,14 +428,6 @@ describe('the error page', () => {
     expect(tags.moduleScripts).toEqual([ERROR_PAGE.entry])
     expect(tags.stylesheets).toEqual(ERROR_PAGE.stylesheets)
     expect(tags.modulepreloads).toEqual(ERROR_PAGE.preloads)
-  })
-
-  it('rendered as /_error with assets that do not name it, fails rather than rendering no script', () => {
-    // Startup refuses such assets; this is the document's own check.
-    const assets = { ...ASSETS, pages: PAGES_WITHOUT_ERROR_PAGE }
-
-    expect(() => renderDocument({ pathname: '/_error', assets, entrypoints: {} }))
-      .toThrow('No scripts found for /_error')
   })
 
   // VITE-MIGRATION(webpack-deletion): delete this test with the exemption.

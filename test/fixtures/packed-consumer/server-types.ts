@@ -32,10 +32,7 @@ async function renderArticle () {
   page.query.slug.toUpperCase()
   page.props.title.toUpperCase()
   const legacyPage = await doPageRender(request, {}, '/article', {}, { title: 'Sleep' }, app.renderOpts)
-  // Webpack-only callers of the standalone API pass no assets.
-  await doDocRender(legacyPage, {}, {
-    dev: false, dir: '.', hotReloader: undefined, publicPath: '/_next/', buildId: 'build', entrypoints: {}
-  })
+  await doDocRender(legacyPage, {}, app.renderOpts)
   // @ts-expect-error The query's slug is inferred as a string.
   page.query.slug.toFixed()
   // @ts-expect-error The initial title prop is inferred as a string.

@@ -11,22 +11,42 @@ export default class Server {
     if (loadPage !== undefined && typeof loadPage !== 'function') {
       throw new TypeError('loadPage must be a function')
     }
-    // Legacy development compiles a page's browser entry only when it loads
-    // that page from disk, so loaded pages would render with no scripts.
-    if (dev && loadPage !== undefined && assets === undefined) {
-      throw new TypeError('loadPage with dev: true requires assets; legacy development compiles only pages it loads from disk')
-    }
-    const pageAssets = assets !== undefined ? checkAssets(assets) : undefined
     this.dir = resolve(dir)
     this.dev = dev
     this.quiet = quiet
-    this.config = pageAssets ? {} : getConfig(this.dir, conf)
-    this.hotReloader = dev && !pageAssets ? this.getHotReloader() : null
-    if (!dev && !pageAssets && !fs.existsSync(resolve(dir, '.next', 'BUILD_ID'))) {
+    this.loadPage = loadPage
+
+    // The consumer built the application. Nothing below this block runs, so
+    // the server reads no next.config.js, build ID file or webpack output.
+    if (assets !== undefined) {
+      this.assets = checkAssets(assets)
+      this.config = {}
+      this.hotReloader = null
+      this.renderOpts = {
+        dev,
+        dir: this.dir,
+        hotReloader: null,
+        publicPath: '/_next/',
+        buildId: this.assets.buildId,
+        entrypoints: undefined
+      }
+      return
+    }
+
+    // VITE-MIGRATION(webpack-deletion): everything from here to the end of the
+    // constructor is the webpack path, unchanged from 28.0 apart from this check.
+    // Webpack's dev server compiles a page's browser entry only when it loads
+    // that page from disk, so a page from loadPage would render with no scripts.
+    if (dev && loadPage !== undefined) {
+      throw new TypeError('loadPage with dev: true requires assets; webpack development compiles only pages it loads from disk')
+    }
+    this.config = getConfig(this.dir, conf)
+    this.hotReloader = dev ? this.getHotReloader() : null
+    if (!dev && !fs.existsSync(resolve(dir, '.next', 'BUILD_ID'))) {
       console.error(`> Could not find a valid build in the '${'.next'}' directory! Try building your app with 'next build' before starting the server.`)
       process.exit(1)
     }
-    const buildId = pageAssets ? pageAssets.buildId : !dev ? this.readBuildId() : '-'
+    const buildId = !dev ? this.readBuildId() : '-'
     const assetPrefix = (this.config.assetPrefix || '').replace(/\/$/, '')
     this.renderOpts = {
       dev,
@@ -34,15 +54,14 @@ export default class Server {
       hotReloader: this.hotReloader,
       publicPath: `${assetPrefix}/_next/`,
       buildId,
-      entrypoints: !dev && !pageAssets ? this.readEntrypoints() : undefined,
-      loadPage,
-      assets: pageAssets
+      entrypoints: !dev ? this.readEntrypoints() : undefined
     }
   }
 
   renderPage (req, res, pathname, query, initialProps, { page, err, enhancer, overloadCheck } = {}) {
     return doPageRender(req, res, pathname, query, initialProps, {
       ...this.renderOpts,
+      loadPage: this.loadPage,
       page,
       err,
       enhancer,
@@ -51,7 +70,12 @@ export default class Server {
   }
 
   renderDocument (page, initialProps, { amp } = {}) {
-    return doDocRender(page, initialProps, { ...this.renderOpts, amp })
+    return doDocRender(page, initialProps, {
+      ...this.renderOpts,
+      loadPage: this.loadPage,
+      assets: this.assets,
+      amp
+    })
   }
 
   getHotReloader () {
@@ -73,7 +97,8 @@ export default class Server {
   }
 
   defineRoutes (server) {
-    if (this.renderOpts.assets) return
+    // With assets, the consumer serves its own files.
+    if (this.assets) return
 
     if (this.hotReloader) {
       server.route({
