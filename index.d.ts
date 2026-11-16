@@ -86,8 +86,8 @@ export interface RenderOptions {
   publicPath: string
   buildId: string
   entrypoints: WebpackEntrypoints | undefined
-  /** The checked copy of `ServerOptions.assets`, or undefined. */
-  assets: Readonly<BuildAssets> | undefined
+  /** The checked copy of `ServerOptions.assets`. Webpack-only callers omit it. */
+  assets?: Readonly<BuildAssets> | undefined
 }
 
 export type WebpackEntrypoints = Record<string, { chunks: { file: string; module: boolean }[] }>
