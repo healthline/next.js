@@ -2,9 +2,27 @@
 
 Publish from a terminal after the release changes merge to `master`. Follow the [repository setup](../readme.md#setup), renew your npm login, and confirm you have permission to publish to the healthline npm organization and push Git tags. Sign in to GitHub CLI to create the release.
 
+## Pick the version
+
+Look up the latest published version. `package.json` on `master` doesn't show it: step 1 sets the version only for the publish, and step 3 restores the file.
+
+```bash
+yarn npm info @healthline/next --fields version
+```
+
+Then pick the smallest bump that covers everything merged since that release. Frontend is the only consumer, so judge each change by what frontend has to do to upgrade. The public surface is the import paths in the `exports` map of the [package manifest](../package.json) and the options and methods frontend calls on them.
+
+| To upgrade, frontend… | Bump | For example |
+| --- | --- | --- |
+| must change its own code | Major: `28.1.0` to `29.0.0` | A public import path, export or option is removed or renamed, or a render method returns a different result. |
+| changes nothing, and can use something new | Minor: `28.1.0` to `28.2.0` | A new import path such as `@healthline/next/router`, or a new option. |
+| changes nothing, and gets a fix | Patch: `28.1.0` to `28.1.1` | A bug fix behind the same imports and options. |
+
+If a change fits two rows, use the larger bump. [Frontend's dependency range](https://github.com/healthline/frontend/blob/main/package.json) starts with `~`, which accepts new patch versions, so a breaking change released as a patch can arrive in a lockfile update that nobody reviews as an upgrade. A minor or major reaches frontend only when someone raises that range in a frontend PR.
+
 ## 1. Check the archive and registry
 
-Start in a clean release worktree. Replace `28.1.0` with the version you're releasing. Run all three steps in this checkout and the same terminal session: steps 2 and 3 reuse `release_version` and stop if it is unset.
+Start in a clean release worktree. Replace `28.1.0` with the version you picked. Run all three steps in this checkout and the same terminal session: steps 2 and 3 reuse `release_version` and stop if it is unset.
 
 ```bash
 release_version=28.1.0
