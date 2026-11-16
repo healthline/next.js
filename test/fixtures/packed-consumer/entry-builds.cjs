@@ -11,7 +11,7 @@ const asBrowser = process.execArgv.includes('--conditions=browser')
 
 // Frontend's browser bundles import these, so each needs a browser build.
 // A new entry with browser code belongs here and needs a `browser` condition.
-const browserEntries = ['./router', './link', './page-loader', './client']
+const browserEntries = ['./router', './page-loader', './client']
 
 assert.deepEqual(
   Object.keys(entries).filter(name => entries[name].browser), browserEntries,

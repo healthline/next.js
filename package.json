@@ -102,12 +102,6 @@
       "import": "./esm/router.mjs",
       "default": "./node/server/router.js"
     },
-    "./link": {
-      "types": "./link.d.ts",
-      "browser": "./browser/lib/link.js",
-      "import": "./esm/link.mjs",
-      "default": "./node/lib/link.js"
-    },
     "./page-loader": {
       "types": "./page-loader.d.ts",
       "browser": "./browser/lib/page-loader.js",

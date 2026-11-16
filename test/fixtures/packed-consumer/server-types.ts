@@ -4,7 +4,6 @@
 import { createElement } from 'react'
 import next, { doDocRender, doPageRender } from '@healthline/next'
 import Document, { Head, Main, NextScript } from '@healthline/next/document'
-import Link from '@healthline/next/link'
 import { registerPage } from '@healthline/next/page-loader'
 import RouterState, { events } from '@healthline/next/router'
 
@@ -23,7 +22,6 @@ class ArticleDocument extends Document<{ section: string }> {
 void ArticleDocument
 createElement(Main, { className: 'article' })
 createElement(NextScript, { nonce: 'nonce' })
-createElement(Link, { href: '/article', children: createElement('a', null, 'Article') })
 
 const Article = ({ title }: { title: string }) => createElement('h1', null, title)
 registerPage('/article', () => ({ page: Article }))

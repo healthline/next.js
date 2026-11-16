@@ -67,7 +67,7 @@ Frontend imports the package only by these names. `exports` in [`package.json`](
 | `@healthline/next/router` | Navigation in the browser; request state on the server |
 | `@healthline/next/client` | Browser startup |
 | `@healthline/next/document` | Frontend's `pages/_document.js` |
-| `@healthline/next/link`, `@healthline/next/page-loader` | Links, and page registration in the browser |
+| `@healthline/next/page-loader` | Page registration in the browser |
 
 Each name can map to more than one file. The tool that resolves the import picks one by condition:
 
