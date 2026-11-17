@@ -14,18 +14,22 @@ Then pick the smallest bump that covers everything merged since that release. Fr
 
 | To upgrade, frontend… | Bump | For example |
 | --- | --- | --- |
-| must change its own code | Major: `28.1.0` to `29.0.0` | A public import path, export or option is removed or renamed, or a render method returns a different result. |
-| changes nothing, and can use something new | Minor: `28.1.0` to `28.2.0` | A new import path such as `@healthline/next/router`, or a new option. |
-| changes nothing, and gets a fix | Patch: `28.1.0` to `28.1.1` | A bug fix behind the same imports and options. |
+| must change its own code | Major: `29.0.0` to `30.0.0` | A public import path, export or option is removed or renamed, or a render method returns a different result. |
+| changes nothing, and can use something new | Minor: `29.0.0` to `29.1.0` | A new import path such as `@healthline/next/router`, or a new option. |
+| changes nothing, and gets a fix | Patch: `29.0.0` to `29.0.1` | A bug fix behind the same imports and options. |
 
 If a change fits two rows, use the larger bump. [Frontend's dependency range](https://github.com/healthline/frontend/blob/main/package.json) starts with `~`, which accepts new patch versions, so a breaking change released as a patch can arrive in a lockfile update that nobody reviews as an upgrade. A minor or major reaches frontend only when someone raises that range in a frontend PR.
 
-## 1. Check the archive and registry
+## 1. Set the version and do a dry run
 
-Start in a clean release worktree. Replace `28.1.0` with the version you picked. Run all three steps in this checkout and the same terminal session: steps 2 and 3 reuse `release_version` and stop if it is unset.
+Run all three steps in one bash or zsh terminal. Steps 2 and 3 reuse `release_version`.
+
+1. Type the version you picked after `release_version=`.
+2. Paste the block. It stops if the version is blank or the checkout has uncommitted changes.
 
 ```bash
-release_version=28.1.0
+release_version=    # the version you picked, such as 29.0.0
+: "${release_version:?Type the version you picked after release_version=}" &&
 test -z "$(git status --porcelain)" &&
 git fetch origin master &&
 git switch --detach origin/master &&
@@ -34,7 +38,7 @@ yarn version "$release_version" --immediate &&
 yarn npm publish --access restricted --dry-run
 ```
 
-Continue when the dry run lists the expected files and says `Package would be published to https://registry.npmjs.org`. The [package manifest](../package.json) sets the publish registry and controls which files ship.
+**Continue when** the dry run lists the expected files and ends with `Package would be published to https://registry.npmjs.org`. If the files look wrong, check `files` in the [package manifest](../package.json).
 
 ## 2. Publish and verify the version
 
