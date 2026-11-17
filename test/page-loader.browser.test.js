@@ -1,6 +1,3 @@
-// VITE-MIGRATION(webpack-deletion): delete this file with the HMR wait in
-// lib/page-loader.js.
-//
 // Jest supplies CommonJS `module`, so run the compiled loader without that
 // binding to exercise an ES module bundle's scope.
 
@@ -26,6 +23,8 @@ const loadInEsmBundleScope = () => {
   return exported
 }
 
+// VITE-MIGRATION(webpack-deletion): delete this describe with the HMR wait in
+// lib/page-loader.js.
 describe('registerPage in a bundle with no CommonJS module binding', () => {
   it('registers the page instead of throwing on the HMR record', async () => {
     // A global `module` would resolve the identifier and leave the guard
@@ -42,5 +41,17 @@ describe('registerPage in a bundle with no CommonJS module binding', () => {
 
     expect(didRegister).toBe(true)
     await expect(waitForPage('/')).resolves.toBe(PAGE)
+  })
+})
+
+describe('waitForPage', () => {
+  it('finds a page registered without /index when asked for its /index path', async () => {
+    const { registerPage, waitForPage } = loadInEsmBundleScope()
+
+    registerPage('/', () => ({ page: PAGE }))
+    registerPage('/hl/week', () => ({ page: PAGE }))
+
+    await expect(waitForPage('/index')).resolves.toBe(PAGE)
+    await expect(waitForPage('/hl/week/index')).resolves.toBe(PAGE)
   })
 })

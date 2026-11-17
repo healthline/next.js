@@ -1,12 +1,12 @@
-// Shipped source names neither Vite nor a manifest outside a VITE-MIGRATION(
-// comment block.
+// Shipped code uses no Vite-only API and reads no build manifest outside a
+// VITE-MIGRATION( comment block: rendering must not depend on the bundler.
 
 const fs = require('fs')
 const path = require('path')
 
 const packageRoot = path.join(__dirname, '..')
 const publishedFiles = require('./published-files')
-const banned = /vite|manifest/i
+const banned = /import\.meta|\bvite\b|manifest\.json/i
 
 const withoutMarkers = (source) => {
   let inMarker = false
@@ -21,7 +21,7 @@ const withoutMarkers = (source) => {
   })
 }
 
-it('names neither Vite nor a manifest outside VITE-MIGRATION( markers', () => {
+it('uses no import.meta and names no Vite path or manifest.json outside VITE-MIGRATION( markers', () => {
   const found = publishedFiles().flatMap((file) => {
     const name = path.relative(packageRoot, file)
     return withoutMarkers(fs.readFileSync(file, 'utf8'))

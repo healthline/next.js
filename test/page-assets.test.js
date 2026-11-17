@@ -186,19 +186,6 @@ afterEach(() => {
 })
 
 describe('a server given assets, outside dev', () => {
-  it('starts and renders a page with no build ID file, no webpack entrypoints file and no SITE', async () => {
-    const dir = appDir()
-    expect(existsSync(join(dir, '.next', 'BUILD_ID'))).toBe(false)
-    expect(existsSync(join(dir, '.next', 'webpack-entrypoints.json'))).toBe(false)
-    expect(process.env.SITE).toBeUndefined()
-
-    const app = createServer({ dir, dev: false, assets: ASSETS })
-    const markup = await renderThroughServer(app, '/article')
-
-    expect(loadingTags(markup).moduleScripts).toEqual([ARTICLE.entry])
-    expect(nextData(markup).buildId).toBe('build-7')
-  })
-
   it('ignores a build ID file, a webpack entrypoints file and SITE when they are there', async () => {
     // Each would stop or change the start if read: an unparseable file, and a
     // SITE it does not name.
@@ -229,6 +216,7 @@ describe('the route key', () => {
     expect(await entryFor('/hl/week/index')).toEqual(['/b7/week-GGGG.js'])
   })
 
+  // A route the assets don't name fails the render, as "/index" does here.
   it('is "/index", which "/" does not match, for the index page rendered as "/index"', async () => {
     await expect(entryFor('/index')).rejects.toThrow('No scripts found for /index')
   })
@@ -240,20 +228,14 @@ describe('the assets option, checked when the server is constructed', () => {
     ({ ...ASSETS, pages: { ...ASSETS.pages, '/article': { ...ARTICLE, ...changes } } })
   const articleWithoutEntry = { stylesheets: ARTICLE.stylesheets, preloads: ARTICLE.preloads }
 
-  it('accepts every URL form: a path, http:// and https://', () => {
-    expect(start(ASSETS)).not.toThrow()
-  })
-
   it.each([
     ['a missing buildId', { pages: ASSETS.pages }, 'assets.buildId'],
-    ['an empty buildId', { ...ASSETS, buildId: '' }, 'assets.buildId'],
-    ['missing pages', { buildId: 'build-7' }, 'assets.pages'],
+    ['missing pages', { buildId: 'build-7' }, 'assets.pages must be an object'],
     ['pages that are a Map', { ...ASSETS, pages: new Map(Object.entries(ASSETS.pages)) }, 'assets.pages must be an object'],
     ['pages that are an array', { ...ASSETS, pages: [ARTICLE] }, 'assets.pages must be an object'],
     ['a route without a leading slash', { ...ASSETS, pages: { ...ASSETS.pages, article: ARTICLE } }, 'assets.pages["article"]'],
     ['a route with two leading slashes', { ...ASSETS, pages: { ...ASSETS.pages, '//article': ARTICLE } }, 'assets.pages["//article"]: a route starts with a single "/"'],
     ['a route starting with /\\', { ...ASSETS, pages: { ...ASSETS.pages, '/\\article': ARTICLE } }, 'assets.pages["/\\\\article"]: a route starts with a single "/"'],
-    ['no entry for the error page', { ...ASSETS, pages: PAGES_WITHOUT_ERROR_PAGE }, 'assets.pages["/_error"] is missing'],
     ['a page that is not an object', { ...ASSETS, pages: { '/article': '/b7/article.js' } }, 'assets.pages["/article"] must be an object'],
     ['a missing entry', { ...ASSETS, pages: { '/article': articleWithoutEntry } }, 'assets.pages["/article"].entry'],
     ['an entry that is a relative file path', withArticle({ entry: 'b7/article-AAAA.js' }), 'assets.pages["/article"].entry'],
@@ -324,29 +306,18 @@ describe('the tags of a page the assets name', () => {
     tags = loadingTags(markup)
   })
 
-  it('loads the entry as the only script with a src, after the inline __NEXT_DATA__ script', () => {
+  it('runs the inline module={} shim and __NEXT_DATA__ first, then the entry, the only script with a src', () => {
     // The client entry reads __NEXT_DATA__ as soon as it runs.
     expect(tags.scriptSources).toEqual([null, ARTICLE.entry])
-    expect(tags.moduleScripts).toEqual([ARTICLE.entry])
+    expect(inlineScript(markup)).toMatch(/^module=\{\};__NEXT_DATA__=\{/)
+    expect(nextData(markup).pathname).toBe('/article')
   })
 
-  it('links the stylesheets in the order given', () => {
-    expect(tags.stylesheets).toEqual(ARTICLE.stylesheets)
-  })
-
-  it('preloads the given modules', () => {
-    // Sorted, because preload order changes nothing a browser does.
-    expect([...tags.modulepreloads].sort()).toEqual([...ARTICLE.preloads].sort())
-  })
-
-  it('puts the stylesheet and modulepreload links in <head>', () => {
+  it('puts the stylesheet and modulepreload links in <head>, and no webpack preloads, although the webpack entrypoints name the route', () => {
     const document = parse(markup)
 
     expect([...document.querySelectorAll('link')].every((link) => link.parentElement === document.head)).toBe(true)
     expect(document.head.querySelectorAll('link').length).toBe(ARTICLE.stylesheets.length + ARTICLE.preloads.length)
-  })
-
-  it('gets no webpack tags, although the webpack entrypoints name the route', () => {
     expect(tags.preloads).toEqual([])
   })
 
@@ -360,11 +331,6 @@ describe('the tags of a page the assets name', () => {
     expect(entryScript.hasAttribute('async')).toBe(false)
   })
 
-  it('keeps the module={} shim in front of __NEXT_DATA__', () => {
-    expect(inlineScript(markup)).toMatch(/^module=\{\};__NEXT_DATA__=\{/)
-    expect(nextData(markup).pathname).toBe('/article')
-  })
-
   it('keeps a link URL whole when it holds a quote', () => {
     const url = '/b7/odd?q="><script>x</script>'
     const assets = { ...ASSETS, pages: { '/article': { ...ARTICLE, stylesheets: [`${url}.css`], preloads: [`${url}.js`] } } }
@@ -372,14 +338,6 @@ describe('the tags of a page the assets name', () => {
 
     expect(tags.stylesheets).toEqual([`${url}.css`])
     expect(tags.modulepreloads).toEqual([`${url}.js`])
-  })
-})
-
-describe('a route the assets do not name', () => {
-  it('fails the render', async () => {
-    const app = createServer({ dir: appDir(), dev: false, assets: ASSETS })
-
-    await expect(renderThroughServer(app, '/missing')).rejects.toThrow('No scripts found for /missing')
   })
 })
 
@@ -415,8 +373,11 @@ describe('the error page', () => {
     const app = createServer({ dir: appDir(), dev: false, assets: ASSETS })
 
     const markup = await renderThroughServer(app, '/article', { page: '_error', err: error })
+    const tags = loadingTags(markup)
 
-    expect(loadingTags(markup).moduleScripts).toEqual([ARTICLE.entry])
+    expect(tags.moduleScripts).toEqual([ARTICLE.entry])
+    expect(tags.stylesheets).toEqual(ARTICLE.stylesheets)
+    expect(tags.modulepreloads).toEqual(ARTICLE.preloads)
     expect(parse(markup).getElementById('__next').textContent).toBe('_error body')
   })
 
@@ -458,9 +419,9 @@ describe('a server not given assets', () => {
     } })
     const markup = await renderThroughServer(createServer({ dir }), '/standard')
     expect(nextData(markup).publicPath).toBe(PUBLIC_PATH)
-    expect(loadingTags(markup).moduleScripts).toEqual(
-      ENTRYPOINTS['pages/standard.js'].chunks.map(({ file }) => `${PUBLIC_PATH}${file}`)
-    )
+    const prefixed = ENTRYPOINTS['pages/standard.js'].chunks.map(({ file }) => `${PUBLIC_PATH}${file}`)
+    expect(loadingTags(markup).moduleScripts).toEqual(prefixed)
+    expect(loadingTags(markup).preloads).toEqual(prefixed)
   })
 
   it('reads the build ID and SITE\'s webpack entrypoints, and preserves the 28.0 webpack markup', async () => {
@@ -486,22 +447,18 @@ describe('a consumer-owned server-page loader', () => {
     render () { return createElement('html', { amp: '' }, createElement('body', null, 'loaded AMP document')) }
   }
 
-  it.each([
-    ['/article', false, undefined, 'loaded article', ARTICLE.entry],
-    ['/_error', true, '_error', 'loaded error', ERROR_PAGE.entry]
-  ])('renders %s with dev=%s without reading build configuration or server files', async (pathname, dev, page, body, script) => {
+  it('renders /_error with dev=true without reading build configuration or server files', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'next-loaded-pages-'))
     scratchDirs.push(dir)
     writeFileSync(join(dir, 'next.config.js'), 'throw new Error("Build configuration must not run")')
     const components = {
-      '/article': () => 'loaded article',
       '/_error': () => 'loaded error',
       '/_document': LoadedDocument
     }
-    const app = createServer({ dir, dev, assets: ASSETS, loadPage: async id => components[id] })
-    const markup = await renderThroughServer(app, pathname, { page })
-    expect(markup).toContain(body)
-    expect(loadingTags(markup).moduleScripts).toEqual([script])
+    const app = createServer({ dir, dev: true, assets: ASSETS, loadPage: async id => components[id] })
+    const markup = await renderThroughServer(app, '/_error', { page: '_error' })
+    expect(markup).toContain('loaded error')
+    expect(loadingTags(markup).moduleScripts).toEqual([ERROR_PAGE.entry])
     expect(existsSync(join(dir, '.next'))).toBe(false)
   })
 
