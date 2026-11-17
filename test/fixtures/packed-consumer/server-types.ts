@@ -1,0 +1,45 @@
+// Consumer code that must type-check against the packed declarations, as Node
+// and the server build resolve them. The pack test compiles it; it never runs.
+// A line under `@ts-expect-error` is misuse the declarations must reject.
+import { createElement } from 'react'
+import next, { doDocRender, doPageRender } from '@healthline/next'
+import Document, { Head, Main, NextScript } from '@healthline/next/document'
+import { registerPage } from '@healthline/next/page-loader'
+import RouterState, { events } from '@healthline/next/router'
+
+class ArticleDocument extends Document<{ section: string }> {
+  static async getInitialProps(context: import('@healthline/next/document').DocumentContext) {
+    const page = context.renderPage()
+    return { ...page, html: page.html?.trim() }
+  }
+
+  render() {
+    const { section, __NEXT_DATA__ } = this.props
+    return createElement(Head, { amp: true },
+      createElement('title', null, section + __NEXT_DATA__.buildId))
+  }
+}
+void ArticleDocument
+createElement(Main, { className: 'article' })
+createElement(NextScript, { nonce: 'nonce' })
+
+const Article = ({ title }: { title: string }) => createElement('h1', null, title)
+registerPage('/article', () => ({ page: Article }))
+const app = next({ dir: '.' })
+async function renderArticle () {
+  const request = { url: '/health/sleep' }
+  const page = await doPageRender(request, {}, '/article', { slug: 'sleep' }, { title: 'Sleep' }, app.renderOpts)
+  page.query.slug.toUpperCase()
+  page.props.title.toUpperCase()
+  // @ts-expect-error The query's slug is inferred as a string.
+  page.query.slug.toFixed()
+  // @ts-expect-error The initial title prop is inferred as a string.
+  page.props.title.toFixed()
+  await doDocRender(page, { config: {} }, app.renderOpts)
+}
+void renderArticle
+
+const router = new RouterState('/article', {}, '/example')
+router.asPath.toUpperCase()
+// @ts-expect-error Server imports do not provide browser events.
+events.on('routeChangeComplete', () => {})

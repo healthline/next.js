@@ -50,26 +50,55 @@ const readPackedFiles = () => {
   )
 }
 
-// `main`, each `bin` command and the Babel preset; the files the commands
-// require directly; and each `@healthline/next/...` target the preset aliases
-// `next/*` to. It does not follow imports any further. `modules` are
-// extensionless, each a `.js` file or a directory with an index.
-const filesTheEntryPointsName = () => {
-  const manifest = JSON.parse(manifestBefore)
-  const binFiles = Object.values(manifest.bin).map((file) => path.posix.normalize(file))
-  const entryFiles = [path.posix.normalize(manifest.main), ...binFiles, 'babel.js']
+const unpackPackedPackage = () => {
+  const packageDir = path.join(scratch, 'package')
+  if (fs.existsSync(packageDir)) return packageDir
 
-  const required = binFiles.flatMap((file) => {
-    const source = fs.readFileSync(path.join(packageRoot, file), 'utf8')
-    return [...source.matchAll(/require\(\s*'(\.\.?\/[^']+)'\s*\)/g)]
-      .map(([, specifier]) => path.posix.join(path.posix.dirname(file), specifier))
+  const unpack = spawnSync('tar', ['-xzf', tarball, '-C', scratch], { encoding: 'utf8' })
+  if (unpack.status !== 0) throw new Error(unpack.stderr)
+  return packageDir
+}
+
+const packedConsumerModules = () => {
+  const packageDir = unpackPackedPackage()
+  const modules = path.join(scratch, 'node_modules')
+  fs.mkdirSync(path.join(modules, '@healthline'), { recursive: true })
+
+  const packageLink = path.join(modules, '@healthline/next')
+  if (!fs.existsSync(packageLink)) fs.symlinkSync(packageDir, packageLink)
+
+  const manifest = readPackedManifest()
+  for (const name of Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies })) {
+    const destination = path.join(modules, name)
+    fs.mkdirSync(path.dirname(destination), { recursive: true })
+    if (!fs.existsSync(destination)) {
+      fs.symlinkSync(path.join(packageRoot, 'node_modules', name), destination)
+    }
+  }
+
+  return modules
+}
+
+const fixtureDir = path.join(__dirname, 'fixtures', 'packed-consumer')
+
+const runNode = (entry, args = [], nodeOptions = []) => {
+  const run = spawnSync(process.execPath, [...nodeOptions, entry, ...args], {
+    cwd: scratch,
+    encoding: 'utf8',
+    timeout: 10000
   })
+  if (run.status !== 0) {
+    throw new Error(`${path.basename(entry)} failed (exit ${run.status}):\n${run.error || ''}\n${run.stdout}${run.stderr}`)
+  }
+  return run.stdout
+}
 
-  const babelSource = fs.readFileSync(path.join(packageRoot, 'babel.js'), 'utf8')
-  const aliased = [...babelSource.matchAll(new RegExp(`'${manifest.name}/([^']+)'`, 'g'))]
-    .map(([, target]) => target)
-
-  return { entryFiles, modules: [...new Set([...required, ...aliased])] }
+// Fixtures run from the scratch directory. Inside the checkout, Node would
+// resolve `@healthline/next` to the source tree instead of the tarball.
+const runConsumer = (name, nodeOptions = []) => {
+  packedConsumerModules()
+  fs.copyFileSync(path.join(fixtureDir, name), path.join(scratch, name))
+  runNode(path.join(scratch, name), [], nodeOptions)
 }
 
 describe('the packed package', () => {
@@ -98,18 +127,58 @@ describe('the packed package', () => {
     expect(fs.existsSync(tarball)).toBe(true)
   })
 
-  it('contains the entry points, what the bin commands require, and the preset\'s alias targets', () => {
-    const packed = readPackedFiles()
-    const { entryFiles, modules } = filesTheEntryPointsName()
+  it('packs every file the manifest points at', () => {
+    const manifest = readPackedManifest()
+    const targetsOf = (entry) => typeof entry === 'string' ? [entry] : Object.values(entry).flatMap(targetsOf)
+    const named = [manifest.main, manifest.types, ...Object.values(manifest.bin), ...targetsOf(manifest.exports)]
+    const files = readPackedFiles()
 
-    // A module specifier resolves to `<path>.js` or `<path>/index.js`.
-    const missing = [
-      ...entryFiles.filter((file) => !packed.has(file)),
-      ...modules.filter((module) => !packed.has(`${module}.js`) && !packed.has(`${module}/index.js`))
-    ]
+    expect(named.map(target => path.posix.normalize(target)).filter(target => !files.has(target))).toEqual([])
+  })
 
-    expect(modules.length).toBeGreaterThan(0)
-    expect(missing).toEqual([])
+  it('runs the packed next-build command and shows its usage', () => {
+    packedConsumerModules()
+    const cli = path.join(unpackPackedPackage(), readPackedManifest().bin['next-build'])
+    expect(runNode(cli, ['--help'])).toContain('Compiles the application for production deployment')
+  })
+
+  it('resolves each entry to its Node build, and rejects private paths', () => {
+    runConsumer('entry-builds.cjs')
+  })
+
+  it('resolves browser entries to their browser builds under the browser condition', () => {
+    runConsumer('entry-builds.cjs', ['--conditions=browser'])
+  })
+
+  it('gives import and require the same exports', () => {
+    runConsumer('esm-entries.mjs')
+  })
+
+  it.each([
+    ['browser-types.ts', 'test/fixtures/packed-consumer/browser-types.ts', [
+      '--module', 'esnext', '--target', 'es2015', '--moduleResolution', 'bundler', '--customConditions', 'browser'
+    ]],
+    ['server-types.ts', 'test/fixtures/packed-consumer/server-types.ts', [
+      '--module', 'esnext', '--target', 'es2015', '--moduleResolution', 'bundler'
+    ]]
+  ])('type-checks the packed consumer %s', (name, fixture, options) => {
+    packedConsumerModules()
+    const emptyTypeRoots = path.join(scratch, 'type-roots')
+    fs.mkdirSync(emptyTypeRoots, { recursive: true })
+    const source = path.join(packageRoot, fixture)
+    fs.copyFileSync(source, path.join(scratch, name))
+
+    const compile = spawnSync(
+      path.join(packageRoot, 'node_modules', '.bin', 'tsc'),
+      ['--noEmit', '--strict', '--typeRoots', emptyTypeRoots, ...options, name],
+      { cwd: scratch, encoding: 'utf8' }
+    )
+    if (compile.status !== 0) {
+      throw new Error(
+        `TypeScript rejected ${name} (source: ${path.relative(packageRoot, source)}).\n` +
+        `${compile.error || ''}\n${compile.stdout}${compile.stderr}`
+      )
+    }
   })
 
   it('runs no install script in a consumer', () => {
