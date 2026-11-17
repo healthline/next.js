@@ -8,16 +8,16 @@ const serverRouter = require('../server/router')
 describe('@healthline/next/router', () => {
   it('exports the same names from its browser and server builds', () => {
     expect(Object.keys(serverRouter).sort()).toEqual(Object.keys(browserRouter).sort())
+    expect(Object.keys(serverRouter.events).sort()).toEqual(Object.keys(browserRouter.events).sort())
   })
 
-  it('gives the server an emitter that keeps no listeners and calls none', () => {
+  it('gives the server an emitter that calls no listeners', () => {
     const listener = jest.fn()
     serverRouter.events.on('routeChangeComplete', listener)
     serverRouter.events.emit('routeChangeComplete', '/article')
     serverRouter.events.off('routeChangeComplete', listener)
 
     expect(listener).not.toHaveBeenCalled()
-    expect(serverRouter.events.all.size).toBe(0)
   })
 
   it('reports no current route on the server', () => {

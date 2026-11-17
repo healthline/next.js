@@ -10,7 +10,6 @@ const browserOnly = (name) => () => {
 // One server renders every request, so a listener added during a render would
 // outlive it. This emitter keeps no listeners and calls none.
 export const events = {
-  all: new Map(),
   on () {},
   off () {},
   emit () {}
