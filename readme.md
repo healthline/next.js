@@ -64,7 +64,7 @@ Frontend imports the package only by these names. `exports` in [`package.json`](
 | --- | --- |
 | `@healthline/next` | Frontend's server: create the app, render pages |
 | `@healthline/next/babel` | Frontend's Babel config |
-| `@healthline/next/router` | Navigation in the browser; request state on the server |
+| `@healthline/next/router` | Navigation and route events in the browser. The server build has the same exports: its events do nothing and navigation throws |
 | `@healthline/next/client` | Browser startup |
 | `@healthline/next/document` | Frontend's `pages/_document.js` |
 | `@healthline/next/page-loader` | Page registration in the browser |

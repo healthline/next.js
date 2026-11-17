@@ -95,11 +95,8 @@
     },
     "./babel": "./babel.js",
     "./router": {
-      "browser": {
-        "types": "./router.browser.d.ts",
-        "default": "./browser/client/router.js"
-      },
       "types": "./router.d.ts",
+      "browser": "./browser/client/router.js",
       "import": "./esm/router.mjs",
       "default": "./node/server/router.js"
     },

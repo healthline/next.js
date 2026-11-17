@@ -5,7 +5,7 @@ import { createElement } from 'react'
 import next, { doDocRender, doPageRender } from '@healthline/next'
 import Document, { Head, Main, NextScript } from '@healthline/next/document'
 import { registerPage } from '@healthline/next/page-loader'
-import RouterState, { events } from '@healthline/next/router'
+import router, { events } from '@healthline/next/router'
 
 class ArticleDocument extends Document<{ section: string }> {
   static async getInitialProps(context: import('@healthline/next/document').DocumentContext) {
@@ -44,7 +44,6 @@ async function renderArticle () {
 }
 void renderArticle
 
-const router = new RouterState('/article', {}, '/example')
-router.asPath.toUpperCase()
-// @ts-expect-error Server imports do not provide browser events.
-events.on('routeChangeComplete', () => {})
+// Code that also runs in the browser gets the same router types here.
+router.route?.toUpperCase()
+events.on('routeChangeComplete', as => as.toUpperCase())

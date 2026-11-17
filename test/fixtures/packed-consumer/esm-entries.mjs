@@ -24,11 +24,9 @@ for (const [name, entry] of Object.entries(entries)) {
     assert.equal(imported.default, required.default, `${specifier} default export`)
   }
   const namesOf = module => Object.keys(module).filter(key => key !== 'default' && key !== '__esModule' && key !== 'module.exports')
-  // `events` is declared only in the ESM router; see esm/router.mjs.
-  const expected = name === './router' ? [...namesOf(required), 'events'] : namesOf(required)
-  assert.deepEqual(namesOf(imported).sort(), expected.sort(), `${specifier}: import and require must export the same names`)
+  assert.deepEqual(namesOf(imported).sort(), namesOf(required).sort(), `${specifier}: import and require must export the same names`)
   for (const key of namesOf(required)) {
     assert.equal(imported[key], required[key], `${specifier} export ${key}`)
   }
 }
-assert.equal(events, undefined)
+assert.equal(typeof events.on, 'function')

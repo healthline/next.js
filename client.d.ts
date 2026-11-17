@@ -1,6 +1,6 @@
 import { ComponentType, ReactElement } from 'react'
 import { PageComponent } from './index.js'
-import router, { RouteInfo } from './router.browser.js'
+import router, { RouteInfo } from './router.js'
 
 interface RenderEvent {
   Component?: PageComponent
