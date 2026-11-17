@@ -21,7 +21,7 @@ corepack prepare yarn@4.12.0 --activate
 
 ### NPM Private Repo Access
 
-Installing needs private `@healthline/*` packages, so your npm account must belong to the [healthline](https://www.npmjs.com/org/healthline) npm org, with two-factor authentication on. If it doesn't yet, register at [npmjs.com](https://www.npmjs.com/) and ask a teammate with admin rights on the org to add you. Then log in and check it worked:
+This package is published to npm as [`@healthline/next`](https://www.npmjs.com/package/@healthline/next). Installing needs private `@healthline/*` packages, so your npm account must belong to the [healthline](https://www.npmjs.com/org/healthline) npm org, with two-factor authentication on. If it doesn't yet, register at [npmjs.com](https://www.npmjs.com/) and ask a teammate with admin rights on the org to add you. Then log in and check it worked:
 
 ```bash
 yarn npm login --scope healthline --web-login
@@ -77,6 +77,12 @@ Each name can map to more than one file. The tool that resolves the import picks
 - **`types`**: TypeScript gets the hand-written `.d.ts` file. It must come before the condition it describes.
 
 To add an import: add its entry to `exports`, write its `.d.ts`, and add a wrapper in `esm/` if the module has a default export. `yarn test:pack` fails with instructions when a wrapper or a `browser` condition is missing.
+
+## Rendering
+
+Frontend owns how a site is built; this package owns how a page renders. Anything that reads build output, such as a bundler plugin or a manifest reader, belongs in frontend: frontend turns its build into each route's script, stylesheets and preloads, passes them as `assets`, and passes a `loadPage` function that returns each page's component. This package renders from those values and never reads a consumer's build output. [The bundler-neutral test](test/bundler-neutral-source.test.js) fails if the shipped code uses `import.meta`, names a `vite` path or reads a `manifest.json`. The webpack path, which reads `.next/` itself, is the one exception, and it goes when every site passes `assets`. Frontend's ADR `docs/adr/2026-11-10-frontend-owns-build-healthline-next-owns-rendering.md` records the decision and the alternatives it rejected.
+
+Start with the [typed rendering example](examples/render-article.ts). It shows how to supply assets and a page loader, render a page, and process the result before rendering its document. The pack suite checks this example against the declarations in the archive. See [the public types](index.d.ts) for option and fallback rules.
 
 ## Releases
 

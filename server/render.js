@@ -12,6 +12,7 @@ export async function doPageRender (req, res, pathname, query, initialProps, {
   publicPath,
   page,
   hotReloader,
+  loadPage,
   dir,
   overloadCheck = () => false,
   enhancer = Page => Page
@@ -19,12 +20,7 @@ export async function doPageRender (req, res, pathname, query, initialProps, {
   pathname = pathname.replace(/\/index/, '') || '/index'
   page = page || pathname
 
-  await ensurePage(page, { dir, hotReloader })
-
-  const pageDir = join(dir, '.next', 'server', 'pages')
-
-  let Component = require(join(pageDir, page))
-  Component = Component.default || Component
+  const Component = await loadComponent(page, { dir, hotReloader, loadPage })
 
   const asPath = req.url
   const props = initialProps || await Component.getInitialProps({ err, req, res, pathname, query, asPath })
@@ -66,24 +62,25 @@ export async function doPageRender (req, res, pathname, query, initialProps, {
   }
 }
 
-export async function doDocRender (page, initialProps, { amp, dev, dir, publicPath, entrypoints, hotReloader, buildId }) {
-  const pageDir = join(dir, '.next', 'server', 'pages')
-
-  let Document = require(join(pageDir, amp ? '_amp' : '_document'))
-  Document = Document.default || Document
+export async function doDocRender (page, initialProps, { amp, dev, dir, publicPath, entrypoints, assets, hotReloader, buildId, loadPage }) {
+  const Document = await loadComponent(amp ? '_amp' : '_document', { dir, loadPage })
 
   const docProps = await Document.getInitialProps({ initialProps, renderPage: () => page })
+  const nextData = {
+    buildId,
+    props: docProps.props,
+    pathname: docProps.pathname,
+    query: docProps.query,
+    publicPath: docProps.publicPath || publicPath,
+    err: docProps.err
+  }
   const doc = createElement(Document, {
-    __NEXT_DATA__: {
-      buildId,
-      props: docProps.props,
-      pathname: docProps.pathname,
-      query: docProps.query,
-      publicPath: docProps.publicPath || publicPath,
-      err: docProps.err
-    },
+    __NEXT_DATA__: nextData,
+    // With assets, Head and NextScript read the assets and never the entrypoints.
+    // VITE-MIGRATION(webpack-deletion): delete `entrypoints`; the dev branch
+    // reads webpack's compilation, and goes with client/next-dev.js.
     entrypoints:
-      entrypoints ||
+      assets ? undefined : entrypoints ||
       hotReloader.multiStats.stats.reduce((prev, { compilation }) => {
         for (let [entryName, entrypoint] of compilation.entrypoints.entries()) {
           const path = prev[entryName] = prev[entryName] = prev[entryName] || { chunks: [] }
@@ -100,7 +97,9 @@ export async function doDocRender (page, initialProps, { amp, dev, dir, publicPa
         return prev
       }, {}),
     dev,
-    ...docProps
+    ...docProps,
+    // A Document cannot replace the assets checked at startup.
+    assets
   })
 
   return '<!DOCTYPE html>' + renderToStaticMarkup(doc)
@@ -137,4 +136,15 @@ async function ensurePage (page, { dir, hotReloader }) {
   if (page === '_error' || page === '_document' || page === '_amp') return
 
   await hotReloader.ensurePage(page)
+}
+
+async function loadComponent (page, { dir, hotReloader, loadPage }) {
+  // Callers name the built-in templates without a slash: '_error', '_document'.
+  if (loadPage) return loadPage(page.startsWith('/') ? page : `/${page}`)
+
+  // VITE-MIGRATION(server-tree-switch): keep filesystem loading for callers
+  // that have not supplied their own loader.
+  await ensurePage(page, { dir, hotReloader })
+  const loaded = require(join(dir, '.next', 'server', 'pages', page))
+  return loaded.default || loaded
 }

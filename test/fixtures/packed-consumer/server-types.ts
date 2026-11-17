@@ -25,17 +25,22 @@ createElement(NextScript, { nonce: 'nonce' })
 
 const Article = ({ title }: { title: string }) => createElement('h1', null, title)
 registerPage('/article', () => ({ page: Article }))
-const app = next({ dir: '.' })
+const app = next({ dir: '.', loadPage: async id => id === '/_document' ? ArticleDocument : Article })
 async function renderArticle () {
   const request = { url: '/health/sleep' }
-  const page = await doPageRender(request, {}, '/article', { slug: 'sleep' }, { title: 'Sleep' }, app.renderOpts)
+  const page = await app.renderPage(request, {}, '/article', { slug: 'sleep' }, { title: 'Sleep' })
   page.query.slug.toUpperCase()
   page.props.title.toUpperCase()
+  const legacyPage = await doPageRender(request, {}, '/article', {}, { title: 'Sleep' }, app.renderOpts)
+  await doDocRender(legacyPage, {}, app.renderOpts)
   // @ts-expect-error The query's slug is inferred as a string.
   page.query.slug.toFixed()
   // @ts-expect-error The initial title prop is inferred as a string.
   page.props.title.toFixed()
-  await doDocRender(page, { config: {} }, app.renderOpts)
+  const processedPage = { ...page, html: (page.html || page.errorHtml || '').toUpperCase() }
+  await app.renderDocument(processedPage, { config: {} })
+  // @ts-expect-error Request options cannot replace the app's build assets.
+  app.renderPage(request, {}, '/article', {}, {}, { assets: { buildId: 'request', pages: {} } })
 }
 void renderArticle
 

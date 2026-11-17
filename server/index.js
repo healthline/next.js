@@ -2,12 +2,44 @@ import { resolve, join } from 'path'
 import fs from 'fs'
 
 import getConfig from './config'
+import { checkAssets } from './page-assets'
+import { doPageRender, doDocRender } from './render'
 
 export default class Server {
-  constructor ({ dir = '.', dev = false, quiet = false, conf = null } = {}) {
+  // The options are declared in index.d.ts.
+  constructor ({ dir = '.', dev = false, quiet = false, conf = null, assets, loadPage } = {}) {
+    if (loadPage !== undefined && typeof loadPage !== 'function') {
+      throw new TypeError('loadPage must be a function')
+    }
     this.dir = resolve(dir)
     this.dev = dev
     this.quiet = quiet
+    this.loadPage = loadPage
+
+    // The consumer built the application. Nothing below this block runs, so
+    // the server reads no next.config.js, build ID file or webpack output.
+    if (assets !== undefined) {
+      this.assets = checkAssets(assets)
+      this.config = {}
+      this.hotReloader = null
+      this.renderOpts = {
+        dev,
+        dir: this.dir,
+        hotReloader: null,
+        publicPath: '/_next/',
+        buildId: this.assets.buildId,
+        entrypoints: undefined
+      }
+      return
+    }
+
+    // VITE-MIGRATION(webpack-deletion): everything from here to the end of the
+    // constructor is the webpack path, unchanged from 28.0 apart from this check.
+    // Webpack's dev server compiles a page's browser entry only when it loads
+    // that page from disk, so a page from loadPage would render with no scripts.
+    if (dev && loadPage !== undefined) {
+      throw new TypeError('loadPage with dev: true requires assets; webpack development compiles only pages it loads from disk')
+    }
     this.config = getConfig(this.dir, conf)
     this.hotReloader = dev ? this.getHotReloader() : null
     if (!dev && !fs.existsSync(resolve(dir, '.next', 'BUILD_ID'))) {
@@ -24,6 +56,26 @@ export default class Server {
       buildId,
       entrypoints: !dev ? this.readEntrypoints() : undefined
     }
+  }
+
+  renderPage (req, res, pathname, query, initialProps, { page, err, enhancer, overloadCheck } = {}) {
+    return doPageRender(req, res, pathname, query, initialProps, {
+      ...this.renderOpts,
+      loadPage: this.loadPage,
+      page,
+      err,
+      enhancer,
+      overloadCheck
+    })
+  }
+
+  renderDocument (page, initialProps, { amp } = {}) {
+    return doDocRender(page, initialProps, {
+      ...this.renderOpts,
+      loadPage: this.loadPage,
+      assets: this.assets,
+      amp
+    })
   }
 
   getHotReloader () {
@@ -45,6 +97,9 @@ export default class Server {
   }
 
   defineRoutes (server) {
+    // With assets, the consumer serves its own files.
+    if (this.assets) return
+
     if (this.hotReloader) {
       server.route({
         method: 'GET',
@@ -83,6 +138,9 @@ export default class Server {
     return fs.readFileSync(buildIdPath, 'utf8').trim()
   }
 
+  // VITE-MIGRATION(webpack-deletion): delete this, the `entrypoints` render
+  // option, and the .next/BUILD_ID check and read once every site passes
+  // `assets`; bin/next-build writes both files.
   readEntrypoints () {
     const buildIdPath = join(this.dir, '.next', 'webpack-entrypoints.json')
     const entrypoints = JSON.parse(fs.readFileSync(buildIdPath, 'utf8'))

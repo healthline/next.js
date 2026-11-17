@@ -160,6 +160,9 @@ describe('the packed package', () => {
     ]],
     ['server-types.ts', 'test/fixtures/packed-consumer/server-types.ts', [
       '--module', 'esnext', '--target', 'es2015', '--moduleResolution', 'bundler'
+    ]],
+    ['render-article.ts', 'examples/render-article.ts', [
+      '--module', 'esnext', '--target', 'es2015', '--moduleResolution', 'bundler'
     ]]
   ])('type-checks the packed consumer %s', (name, fixture, options) => {
     packedConsumerModules()
